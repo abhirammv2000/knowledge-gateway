@@ -1,0 +1,182 @@
+{
+  "seed": 20260921,
+  "n_docs": 300,
+  "presidio_default": {
+    "total_gold_spans": 1420,
+    "overall_recall": 0.97,
+    "overall_any_type_recall": 0.974,
+    "overall_precision": 0.979,
+    "false_positive_count": 29,
+    "per_entity": {
+      "CREDIT_CARD": {
+        "gold": 118,
+        "recall": 0.763,
+        "any_type_recall": 0.797,
+        "predicted": 95,
+        "precision": 0.947
+      },
+      "EMAIL_ADDRESS": {
+        "gold": 210,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 210,
+        "precision": 1.0
+      },
+      "IBAN_CODE": {
+        "gold": 116,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 116,
+        "precision": 1.0
+      },
+      "IP_ADDRESS": {
+        "gold": 94,
+        "recall": 0.989,
+        "any_type_recall": 1.0,
+        "predicted": 93,
+        "precision": 1.0
+      },
+      "PERSON": {
+        "gold": 554,
+        "recall": 0.977,
+        "any_type_recall": 0.977,
+        "predicted": 542,
+        "precision": 0.998
+      },
+      "PHONE_NUMBER": {
+        "gold": 220,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 236,
+        "precision": 0.932
+      },
+      "US_DRIVER_LICENSE": {
+        "gold": 0,
+        "recall": null,
+        "any_type_recall": null,
+        "predicted": 7,
+        "precision": 0.0
+      },
+      "US_SSN": {
+        "gold": 108,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 108,
+        "precision": 1.0
+      }
+    },
+    "sample_misses": [
+      "CREDIT_CARD: '060426535518'",
+      "CREDIT_CARD: '676183647897'",
+      "CREDIT_CARD: '213109604396897'",
+      "CREDIT_CARD: '4172930667463309108'",
+      "CREDIT_CARD: '4317024886430540656'",
+      "CREDIT_CARD: '639050142244'",
+      "PERSON: 'Darrell Davies'",
+      "CREDIT_CARD: '2615129836557611'",
+      "CREDIT_CARD: '2243007634643975'",
+      "PERSON: 'Bradley Banks'"
+    ],
+    "sample_false_positives": [
+      "PHONE_NUMBER: '060426535518'",
+      "PHONE_NUMBER: '033071709743620'",
+      "PHONE_NUMBER: '0230925185477'",
+      "CREDIT_CARD: '652018694716443'",
+      "PHONE_NUMBER: '0540657675921'",
+      "CREDIT_CARD: '39904242766523'",
+      "US_DRIVER_LICENSE: '639050142244'",
+      "CREDIT_CARD: '101942147223870'",
+      "PERSON: '121.38.74.127'",
+      "PHONE_NUMBER: '44009066989606'"
+    ]
+  },
+  "with_luhn_card_recognizer": {
+    "total_gold_spans": 1420,
+    "overall_recall": 0.99,
+    "overall_any_type_recall": 0.991,
+    "overall_precision": 0.978,
+    "false_positive_count": 32,
+    "per_entity": {
+      "CREDIT_CARD": {
+        "gold": 118,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 131,
+        "precision": 0.901
+      },
+      "EMAIL_ADDRESS": {
+        "gold": 210,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 210,
+        "precision": 1.0
+      },
+      "IBAN_CODE": {
+        "gold": 116,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 116,
+        "precision": 1.0
+      },
+      "IP_ADDRESS": {
+        "gold": 94,
+        "recall": 0.989,
+        "any_type_recall": 1.0,
+        "predicted": 93,
+        "precision": 1.0
+      },
+      "PERSON": {
+        "gold": 554,
+        "recall": 0.977,
+        "any_type_recall": 0.977,
+        "predicted": 542,
+        "precision": 0.998
+      },
+      "PHONE_NUMBER": {
+        "gold": 220,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 234,
+        "precision": 0.94
+      },
+      "US_DRIVER_LICENSE": {
+        "gold": 0,
+        "recall": null,
+        "any_type_recall": null,
+        "predicted": 4,
+        "precision": 0.0
+      },
+      "US_SSN": {
+        "gold": 108,
+        "recall": 1.0,
+        "any_type_recall": 1.0,
+        "predicted": 108,
+        "precision": 1.0
+      }
+    },
+    "sample_misses": [
+      "PERSON: 'Darrell Davies'",
+      "PERSON: 'Bradley Banks'",
+      "IP_ADDRESS: '121.38.74.127'",
+      "PERSON: 'Amber Smith'",
+      "PERSON: 'Justin Hughes'",
+      "PERSON: 'Morgan Baker'",
+      "PERSON: 'Amber Porter'",
+      "PERSON: 'Lee Morris'",
+      "PERSON: 'Kendra Key'",
+      "PERSON: 'Tiffany Murray'"
+    ],
+    "sample_false_positives": [
+      "PHONE_NUMBER: '033071709743620'",
+      "PHONE_NUMBER: '0230925185477'",
+      "CREDIT_CARD: '652018694716443'",
+      "PHONE_NUMBER: '0540657675921'",
+      "CREDIT_CARD: '39904242766523'",
+      "CREDIT_CARD: '101942147223870'",
+      "PERSON: '121.38.74.127'",
+      "PHONE_NUMBER: '44009066989606'",
+      "PHONE_NUMBER: '038619990705677'",
+      "CREDIT_CARD: '319530211998'"
+    ]
+  }
+}

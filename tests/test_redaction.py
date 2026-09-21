@@ -55,3 +55,31 @@ def test_token_vault_is_consistent_across_calls():
     vault = TokenVault()
     assert vault.token_for("PERSON", "Ann") == vault.token_for("PERSON", "Ann")
     assert vault.token_for("PERSON", "Ann") != vault.token_for("PERSON", "Ben")
+
+
+def test_luhn_accepts_valid_and_rejects_invalid_numbers():
+    from gateway.redaction import luhn_valid
+
+    assert luhn_valid("4111111111111111")
+    assert luhn_valid("639050142244")  # 12-digit, valid, missed by Presidio's default
+    assert not luhn_valid("639050142243")  # one digit off
+
+
+def test_twelve_digit_card_the_default_recognizer_misses_is_redacted():
+    from gateway.redaction import luhn_valid
+
+    number = "639050142244"
+    assert luhn_valid(number)
+    result, _ = redact(f"Payment shall be made by card number {number} monthly.")
+
+    assert number not in result.text
+
+
+def test_digit_run_that_fails_luhn_is_left_alone_by_the_card_recognizer():
+    from gateway.redaction import luhn_valid
+
+    number = "639050142243"
+    assert not luhn_valid(number)
+    result, _ = redact(f"Invoice reference number {number} is due upon receipt.")
+
+    assert "CREDIT_CARD" not in {e for _, _, e in result.spans}
