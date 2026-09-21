@@ -29,6 +29,7 @@ The tradeoff is real: the broader rule removes every card number in the test dat
 
 - It is synthetic, templated text. It does not predict accuracy on messy real documents.
 - 118 card numbers is a small sample for the card rows.
+- Phone recall is 100%, but phone precision is only about 93-94%: long non-PII digit runs (invoice and order numbers) are sometimes flagged as phone numbers, with or without the Luhn recognizer.
 - An earlier run of the evaluation scored phone recall at 86%; that was my generator using non-existent area codes, which Presidio correctly rejects. The generator now uses real ones, and phone recall is 100%.
 
 ```bash
