@@ -1,0 +1,226 @@
+{
+  "n_contracts": 510,
+  "n_scored_questions": 6702,
+  "unparsed_questions": 0,
+  "hit_at_k": {
+    "fixed_window": {
+      "@1": 0.4145,
+      "@3": 0.6128,
+      "@5": 0.6976
+    },
+    "structure_aware": {
+      "@1": 0.3902,
+      "@3": 0.5846,
+      "@5": 0.6694
+    }
+  },
+  "hit_at_5_difference_structure_minus_fixed": {
+    "point": -0.0282,
+    "ci95": [
+      -0.0359,
+      -0.0207
+    ]
+  },
+  "hit_at_word_budget": {
+    "fixed_window": {
+      "500w": 0.5385,
+      "1000w": 0.6632,
+      "1250w": 0.6976
+    },
+    "structure_aware": {
+      "500w": 0.5319,
+      "1000w": 0.6685,
+      "1250w": 0.7046
+    }
+  },
+  "primary_budget_difference_structure_minus_fixed": {
+    "budget_words": 1250,
+    "point": 0.007,
+    "ci95": [
+      -0.0004,
+      0.0144
+    ]
+  },
+  "span_integrity": {
+    "fixed_window": 0.9405,
+    "structure_aware": 0.9771
+  },
+  "chunk_stats": {
+    "fixed_window": {
+      "median_chunks_per_contract": 25.0,
+      "median_words_per_chunk": 250,
+      "mean_words_per_chunk": 247.5
+    },
+    "structure_aware": {
+      "median_chunks_per_contract": 32.0,
+      "median_words_per_chunk": 169.0,
+      "mean_words_per_chunk": 159.5
+    }
+  },
+  "per_category_hit_at_5": {
+    "Affiliate License-Licensee": {
+      "fixed_window": 0.729,
+      "structure_aware": 0.78
+    },
+    "Affiliate License-Licensor": {
+      "fixed_window": 0.609,
+      "structure_aware": 0.565
+    },
+    "Agreement Date": {
+      "fixed_window": 0.432,
+      "structure_aware": 0.385
+    },
+    "Anti-Assignment": {
+      "fixed_window": 0.904,
+      "structure_aware": 0.877
+    },
+    "Audit Rights": {
+      "fixed_window": 0.935,
+      "structure_aware": 0.893
+    },
+    "Cap On Liability": {
+      "fixed_window": 0.876,
+      "structure_aware": 0.858
+    },
+    "Change Of Control": {
+      "fixed_window": 0.926,
+      "structure_aware": 0.901
+    },
+    "Competitive Restriction Exception": {
+      "fixed_window": 0.592,
+      "structure_aware": 0.526
+    },
+    "Covenant Not To Sue": {
+      "fixed_window": 0.72,
+      "structure_aware": 0.62
+    },
+    "Document Name": {
+      "fixed_window": 0.345,
+      "structure_aware": 0.263
+    },
+    "Effective Date": {
+      "fixed_window": 0.728,
+      "structure_aware": 0.7
+    },
+    "Exclusivity": {
+      "fixed_window": 0.411,
+      "structure_aware": 0.394
+    },
+    "Expiration Date": {
+      "fixed_window": 0.831,
+      "structure_aware": 0.838
+    },
+    "Governing Law": {
+      "fixed_window": 0.931,
+      "structure_aware": 0.927
+    },
+    "Insurance": {
+      "fixed_window": 0.946,
+      "structure_aware": 0.964
+    },
+    "Ip Ownership Assignment": {
+      "fixed_window": 0.645,
+      "structure_aware": 0.532
+    },
+    "Irrevocable Or Perpetual License": {
+      "fixed_window": 0.957,
+      "structure_aware": 0.943
+    },
+    "Joint Ip Ownership": {
+      "fixed_window": 0.761,
+      "structure_aware": 0.783
+    },
+    "License Grant": {
+      "fixed_window": 0.859,
+      "structure_aware": 0.824
+    },
+    "Liquidated Damages": {
+      "fixed_window": 0.738,
+      "structure_aware": 0.836
+    },
+    "Minimum Commitment": {
+      "fixed_window": 0.794,
+      "structure_aware": 0.788
+    },
+    "Most Favored Nation": {
+      "fixed_window": 0.464,
+      "structure_aware": 0.464
+    },
+    "No-Solicit Of Customers": {
+      "fixed_window": 0.618,
+      "structure_aware": 0.618
+    },
+    "No-Solicit Of Employees": {
+      "fixed_window": 0.746,
+      "structure_aware": 0.814
+    },
+    "Non-Compete": {
+      "fixed_window": 0.42,
+      "structure_aware": 0.462
+    },
+    "Non-Disparagement": {
+      "fixed_window": 0.526,
+      "structure_aware": 0.447
+    },
+    "Non-Transferable License": {
+      "fixed_window": 0.819,
+      "structure_aware": 0.826
+    },
+    "Notice Period To Terminate Renewal": {
+      "fixed_window": 0.865,
+      "structure_aware": 0.856
+    },
+    "Parties": {
+      "fixed_window": 0.301,
+      "structure_aware": 0.248
+    },
+    "Post-Termination Services": {
+      "fixed_window": 0.797,
+      "structure_aware": 0.78
+    },
+    "Price Restrictions": {
+      "fixed_window": 0.6,
+      "structure_aware": 0.533
+    },
+    "Renewal Term": {
+      "fixed_window": 0.938,
+      "structure_aware": 0.955
+    },
+    "Revenue/Profit Sharing": {
+      "fixed_window": 0.53,
+      "structure_aware": 0.434
+    },
+    "Rofr/Rofo/Rofn": {
+      "fixed_window": 0.788,
+      "structure_aware": 0.765
+    },
+    "Source Code Escrow": {
+      "fixed_window": 1.0,
+      "structure_aware": 1.0
+    },
+    "Termination For Convenience": {
+      "fixed_window": 0.929,
+      "structure_aware": 0.896
+    },
+    "Third Party Beneficiary": {
+      "fixed_window": 0.781,
+      "structure_aware": 0.719
+    },
+    "Uncapped Liability": {
+      "fixed_window": 0.937,
+      "structure_aware": 0.946
+    },
+    "Unlimited/All-You-Can-Eat-License": {
+      "fixed_window": 0.824,
+      "structure_aware": 0.882
+    },
+    "Volume Restriction": {
+      "fixed_window": 0.293,
+      "structure_aware": 0.207
+    },
+    "Warranty Duration": {
+      "fixed_window": 0.733,
+      "structure_aware": 0.68
+    }
+  }
+}
