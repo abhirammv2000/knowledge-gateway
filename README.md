@@ -58,16 +58,45 @@ curl -L -o data/raw/CUAD_v1.json "https://huggingface.co/datasets/theatticusproj
 PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
 ```
 
+### Hybrid retrieval and reranking (`src/gateway/retrieval.py`)
+
+Four retrieval methods over the same structure-aware chunks: BM25 alone, dense embeddings alone (`all-MiniLM-L6-v2`, open weights, CPU, no API key), reciprocal rank fusion of the two (RRF, k=60, the constant from the original 2009 paper, not tuned to this data), and that hybrid result reranked by a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) over its top 10 candidates.
+
+Structure-aware chunking, not fixed-window, is the base here: the chunking eval above found the two tie on retrieval at equal context while structure-aware cuts fewer clauses, so the tiebreaker picks it for anything built on top.
+
+**Measured** with `eval/hybrid_retrieval_eval.py` on the same 510 CUAD contracts and 6,702 questions as the chunking eval:
+
+| | Hit@1 | Hit@3 | Hit@5 |
+|---|---|---|---|
+| BM25 only | 39.0% | 58.5% | 66.9% |
+| Dense only | 35.2% | 52.7% | 61.7% |
+| Hybrid (RRF) | 41.8% | 59.7% | 67.4% |
+| Hybrid + rerank | 44.9% | 64.3% | 71.1% |
+
+The result isn't the simple "hybrid beats everything" story I expected:
+
+- **Dense embeddings alone are worse than BM25 alone**, by 5.2 points at Hit@5 (95% interval -6.44 to -3.99, so not noise). A general-purpose embedding model not tuned for legal text loses to exact lexical matching on clause language, where the exact term used (e.g. "indemnification," "force majeure") carries most of the signal.
+- **Hybrid fusion barely moves the needle over BM25 alone**: +0.46 points at Hit@5, 95% interval -0.37 to 1.31, which includes zero. RRF can't get much out of combining a strong signal with a weaker one.
+- **Reranking is where the real, clear gain is**: +3.72 points over hybrid at Hit@5 (95% interval 2.87 to 4.56) and +3.09 at Hit@1 (95% interval 2.04 to 4.18). Both clearly exclude zero. The cross-encoder, which scores the query against each candidate's full text jointly rather than comparing fixed vectors, is doing real work that neither BM25 nor embedding similarity captures alone.
+- Rerank pool is 10, not larger: a timing test on this machine (CPU only, no GPU) measured about 16-18ms per query-chunk pair, and that held whether calls were batched or not, so it's compute-bound. At a pool of 15 the full 6,702-question run projected to about 2.2 hours; 10 was chosen to keep the run under two hours while still giving the reranker twice the candidates Hit@5 needs.
+
 ```bash
 py -3.12 -m venv .venv
-.venv/Scripts/python -m pip install presidio-analyzer presidio-anonymizer pytest pytest-asyncio faker rank-bm25 numpy
+.venv/Scripts/python -m pip install presidio-analyzer presidio-anonymizer pytest pytest-asyncio faker rank-bm25 numpy sentence-transformers
+.venv/Scripts/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 .venv/Scripts/python -m spacy download en_core_web_lg
 .venv/Scripts/python -m pytest
 ```
 
+```bash
+# CUAD_v1.json (40 MB, CC BY 4.0) into data/raw/, which is gitignored
+curl -L -o data/raw/CUAD_v1.json "https://huggingface.co/datasets/theatticusproject/cuad/resolve/main/CUAD_v1/CUAD_v1.json"
+PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
+PYTHONPATH=src .venv/Scripts/python eval/hybrid_retrieval_eval.py   # ~2 hours on CPU
+```
+
 ## Planned
 
-- Hybrid retrieval with reranking
 - Query routing across documents, SQL and an external API, with a guarded read-only text-to-SQL path
 - Cost controls (semantic cache, model routing) and tracing
 - Exposure over MCP and A2A

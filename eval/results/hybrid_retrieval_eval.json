@@ -1,0 +1,67 @@
+{
+  "n_contracts": 510,
+  "n_scored_questions": 6702,
+  "unparsed_questions": 0,
+  "rerank_pool": 10,
+  "hit_at_k": {
+    "bm25_only": {
+      "@1": 0.3902,
+      "@3": 0.5846,
+      "@5": 0.6694
+    },
+    "dense_only": {
+      "@1": 0.3517,
+      "@3": 0.5269,
+      "@5": 0.6173
+    },
+    "hybrid": {
+      "@1": 0.4184,
+      "@3": 0.597,
+      "@5": 0.674
+    },
+    "hybrid_rerank": {
+      "@1": 0.4493,
+      "@3": 0.6426,
+      "@5": 0.7111
+    }
+  },
+  "hit_at_5_differences": {
+    "dense_minus_bm25": {
+      "point": -0.0521,
+      "ci95": [
+        -0.0644,
+        -0.0399
+      ]
+    },
+    "hybrid_minus_bm25": {
+      "point": 0.0046,
+      "ci95": [
+        -0.0037,
+        0.0131
+      ]
+    },
+    "hybrid_minus_dense": {
+      "point": 0.0567,
+      "ci95": [
+        0.0468,
+        0.0665
+      ]
+    },
+    "rerank_minus_hybrid": {
+      "point": 0.0372,
+      "ci95": [
+        0.0287,
+        0.0456
+      ]
+    }
+  },
+  "hit_at_1_differences": {
+    "rerank_minus_hybrid": {
+      "point": 0.0309,
+      "ci95": [
+        0.0204,
+        0.0418
+      ]
+    }
+  }
+}
