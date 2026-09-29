@@ -44,8 +44,8 @@ def get_reranker() -> CrossEncoder:
 
 def _tokenize(s: str) -> list[str]:
     # Matches eval/chunking_eval.py's tokenizer so BM25 behavior is identical
-    # to what was already measured there — this module isn't introducing a
-    # second, different sparse-retrieval implementation.
+    # to what was already measured there, instead of introducing a second,
+    # different sparse-retrieval implementation.
     import re
     return re.findall(r"\w+", s.lower())
 
@@ -104,10 +104,10 @@ def hybrid_search(index: Index, query: str, embedder: SentenceTransformer | None
 def rerank(index: Index, query: str, candidate_idx: list[int], reranker: CrossEncoder | None = None) -> list[int]:
     """Re-score a candidate list with a cross-encoder and return it re-sorted.
 
-    Only the candidates passed in are scored — this is meant to sit on top of
-    sparse_search/dense_search/hybrid_search's top-N, not to replace a first
-    retrieval stage, since scoring every chunk against the query with a
-    cross-encoder is the accuracy/latency tradeoff a first stage exists to avoid.
+    Only the candidates passed in are scored. This sits on top of
+    sparse_search/dense_search/hybrid_search's top-N; scoring every chunk
+    against the query with a cross-encoder is exactly the latency cost a
+    first retrieval stage exists to avoid.
     """
     if not candidate_idx:
         return []

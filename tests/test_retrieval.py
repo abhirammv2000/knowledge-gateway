@@ -1,9 +1,8 @@
 """Pure logic (RRF math, index construction, reranker re-sorting) is tested
 with fake embedder/reranker objects, so most of this file runs in
 milliseconds with no model download. One test at the bottom loads the real
-local models (free, open weights, already verified to load and score
-sensibly against a governing-law example before this module was written) to
-confirm the actual integration, not just the logic around it.
+local models (free, open weights) to check the integration itself, not just
+the logic around it.
 """
 import numpy as np
 import pytest
@@ -51,7 +50,7 @@ def test_rrf_rewards_consistent_placement_over_a_first_then_last_split():
     # ranked #1 in one list but dead last (#4) in the other (1/61 + 1/64 =
     # 0.032018). RRF's 1/(k+r) is convex in r, so by Jensen's inequality a
     # split between a great and a bad rank never scores higher than the same
-    # two ranks averaged — being consistently good beats being erratic.
+    # two ranks averaged: being consistently good beats being erratic.
     fused = reciprocal_rank_fusion([[0, 1, 2, 3], [3, 1, 2, 0]])
 
     assert fused[0] == 1

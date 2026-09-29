@@ -2,7 +2,7 @@
 
 A retrieval gateway for enterprise data: legal documents, relational tables and external APIs behind one query interface, with PII redaction before anything is indexed.
 
-**Status: early. Only the redaction layer exists so far.** Everything below the line is planned, not built, and is here so the direction is clear.
+**Status: early, but the retrieval core is built and measured.** PII redaction, legal-contract chunking, and hybrid retrieval with reranking are all built and evaluated on real data (see below). Query routing across documents/SQL/APIs, cost controls, and MCP/A2A exposure are still planned, see [Planned](#planned).
 
 ## Built
 
