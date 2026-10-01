@@ -1,26 +1,13 @@
-"""OpenTelemetry tracing for the gateway.
+"""OpenTelemetry tracing, off unless you turn it on with one of:
 
-Off by default. Importing this module and creating spans costs next to nothing
-when no exporter is configured, because the spans go to a tracer that does
-nothing. Turn it on with one of:
+    KG_TRACE_FILE=traces.jsonl          one json line per span
+    KG_TRACE_CONSOLE=1                  spans to stderr
+    OTEL_EXPORTER_OTLP_ENDPOINT=...     any OTLP/HTTP collector (needs opentelemetry-exporter-otlp-proto-http)
 
-    KG_TRACE_FILE=traces.jsonl          one JSON line per finished span
-    KG_TRACE_CONSOLE=1                  spans printed to stderr
-    OTEL_EXPORTER_OTLP_ENDPOINT=...     send to any OTLP/HTTP collector (needs
-                                        opentelemetry-exporter-otlp-proto-http)
-
-The gateway sits in front of documents that contain personal data, so spans carry
-sizes, counts and timings and never the text of a query or a document. If you add
-a span attribute, keep that rule.
-
-stdout is off limits here. An MCP server on stdio uses stdout for the protocol
-itself, so anything printed there corrupts it. The console option writes to
-stderr for that reason.
-
-The provider is kept in this module and is not registered as the global one.
-OpenTelemetry only allows setting the global provider once per process, which
-would make tests that need a fresh exporter awkward, and only this package
-creates spans here anyway.
+The documents can contain personal data, so spans only carry sizes, counts and timings, never the text of
+a query or a document. Keep it that way if you add attributes. Console output goes to stderr because stdout
+is the MCP protocol. The provider is kept here and not set as the global one, since OpenTelemetry only
+allows that once per process and the tests need a fresh exporter each time.
 """
 from __future__ import annotations
 
@@ -52,7 +39,7 @@ def get_tracer() -> trace.Tracer:
 
 
 class JsonlSpanExporter(SpanExporter):
-    """Appends each finished span to a file as one JSON line."""
+    """Appends each finished span to a file as a json line."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -85,10 +72,7 @@ def _otlp_exporter(endpoint: str) -> SpanExporter:
 
 
 def setup_tracing(exporter: SpanExporter | None = None) -> TracerProvider | None:
-    """Start tracing, using `exporter` if given and otherwise whatever the environment asks for.
-
-    Returns the provider, or None when nothing was asked for and tracing stays off.
-    """
+    """Start tracing with the exporter you pass, or whatever the environment asks for. Returns None if tracing stays off."""
     global _provider
 
     if exporter is None:

@@ -1,14 +1,9 @@
-"""PII redaction applied before text is chunked, embedded or indexed.
+"""PII redaction before text is chunked, embedded or indexed. Detection is Presidio, and this adds two things:
 
-Detection is Presidio (spaCy NER plus pattern recognizers). Two things Presidio
-does not do for us, and this module adds:
-
-1. Overlap resolution. Presidio can return overlapping spans, for example a URL
-   fragment inside an email address. Replacing both corrupts the text, so the
-   highest-scoring, then longest, span wins and the rest are dropped.
-2. Consistent, reversible tokens. The same value always maps to the same token
-   (<PERSON_1>), so retrieval can still tell two different people apart, and a
-   TokenVault can restore the originals for an authorized caller.
+1. Overlap handling. Presidio can return overlapping spans (a URL fragment inside an email), and replacing
+   both breaks the text, so the highest scoring, then longest, span wins.
+2. Consistent tokens. The same value always gets the same token (<PERSON_1>) so two people stay distinct,
+   and a TokenVault can restore the originals for someone allowed to.
 """
 from __future__ import annotations
 
@@ -42,13 +37,11 @@ def luhn_valid(digits: str) -> bool:
 
 
 class LuhnCardRecognizer(PatternRecognizer):
-    """Any 12-19 digit run that passes Luhn.
+    """Any 12 to 19 digit run that passes Luhn.
 
-    Presidio's built-in card recognizer missed a quarter of the (Luhn-valid)
-    card numbers in this repo's evaluation, mostly 12, 15 and unusual-prefix
-    16 digit numbers. The cost of this broader rule is false positives on
-    non-card digit runs that happen to pass Luhn (roughly 1 in 10 random ones),
-    which eval/redaction_eval.py measures rather than assumes.
+    Presidio's card recognizer missed about a quarter of the Luhn-valid cards in the eval (mostly 12 and
+    15 digit and unusual prefixes). This broader rule flags some non-card digit runs too (about 1 in 10
+    random ones pass Luhn), and redaction_eval.py measures that.
     """
 
     def __init__(self) -> None:
@@ -73,7 +66,7 @@ _analyzer: AnalyzerEngine | None = None
 
 
 def _get_analyzer() -> AnalyzerEngine:
-    # Building the analyzer loads a ~400MB spaCy model, so do it once per process.
+    # building the analyzer loads a 400MB spacy model, so only do it once
     global _analyzer
     if _analyzer is None:
         _analyzer = build_analyzer()

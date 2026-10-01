@@ -1,9 +1,5 @@
-"""The MCP tools, called through a real MCP client.
-
-Most tests connect to the server in-process with fake models. The last one starts
-the server as a subprocess over stdio with the real models, which is how an MCP
-client such as Claude Desktop would run it.
-"""
+"""The MCP tools through a real MCP client. Most connect in-process with fake models, and the last one
+starts the server as a subprocess over stdio with the real models."""
 import json
 import os
 import sys
@@ -44,7 +40,7 @@ async def test_list_contracts(client_factory):
 
 
 async def test_search_contract_returns_passages_best_first(monkeypatch):
-    # clauses under 40 words are merged into one chunk, so give this contract real-sized ones
+    # clauses under 40 words get merged into one chunk, so this contract needs longer ones
     clauses = "\n\n".join(f"{i}. Clause {i}\n\n" + ("the party shall comply with this clause. " * 8) for i in range(1, 5))
     store = FakeStore({"Long Agreement": clauses})
     monkeypatch.setattr(mcp_server, "_service", GatewayService(store, FakeEmbedder(), FakeReranker()))

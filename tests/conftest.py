@@ -1,9 +1,5 @@
-"""Shared fakes for the service, tracing and MCP tests.
-
-The fake embedder and reranker mean none of these tests load a real model, the
-same approach test_retrieval.py takes. The one test that does use the real models
-is the stdio test at the bottom of test_mcp_server.py.
-"""
+"""Fakes shared by the service, tracing and MCP tests, so they don't load a real model (the stdio test at the
+bottom of test_mcp_server.py is the one that does)."""
 import numpy as np
 import pytest
 
@@ -30,7 +26,7 @@ class FakeStore(ContractStore):
 
 
 class FakeEmbedder:
-    """A fixed two-number vector per text, so dense ranking is predictable and fast."""
+    """A fixed two-number vector per text."""
 
     def encode(self, texts, normalize_embeddings=True, show_progress_bar=False):
         vecs = np.array([[len(t) % 7 + 1.0, len(t.split()) % 5 + 1.0] for t in texts])
@@ -38,7 +34,7 @@ class FakeEmbedder:
 
 
 class FakeReranker:
-    """Scores a passage by how many of the query's words it contains."""
+    """Scores a passage by how many of the query's words it has."""
 
     def predict(self, pairs, show_progress_bar=False):
         return [float(len(set(q.lower().split()) & set(p.lower().split()))) for q, p in pairs]

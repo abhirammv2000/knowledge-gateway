@@ -1,9 +1,5 @@
-"""Pure logic (RRF math, index construction, reranker re-sorting) is tested
-with fake embedder/reranker objects, so most of this file runs in
-milliseconds with no model download. One test at the bottom loads the real
-local models (free, open weights) to check the integration itself, not just
-the logic around it.
-"""
+"""RRF math, index building and reranker sorting are tested with fake embedder and reranker objects, so most
+of this runs in milliseconds. One test at the bottom loads the real models."""
 import numpy as np
 import pytest
 
@@ -18,8 +14,7 @@ from gateway.retrieval import (
 
 
 class FakeEmbedder:
-    """Returns a fixed, hand-picked vector per text (matched by exact string),
-    so dense_search's ranking is fully predictable without a real model."""
+    """A hand-picked vector per text, so dense_search's ranking is predictable without a model."""
     def __init__(self, vectors: dict[str, list[float]]):
         self.vectors = vectors
 
@@ -39,18 +34,12 @@ class FakeReranker:
         return [self.score_fn(q, d) for q, d in pairs]
 
 
-# ---------------------------------------------------------------------------
 # reciprocal_rank_fusion
-# ---------------------------------------------------------------------------
 
 def test_rrf_rewards_consistent_placement_over_a_first_then_last_split():
-    # Verified by direct computation, not hand arithmetic (an earlier version
-    # of this test asserted the opposite and was wrong): idx 1 sits at rank 2
-    # in both rankings (score 1/62 + 1/62 = 0.032258), which edges out idx 0,
-    # ranked #1 in one list but dead last (#4) in the other (1/61 + 1/64 =
-    # 0.032018). RRF's 1/(k+r) is convex in r, so by Jensen's inequality a
-    # split between a great and a bad rank never scores higher than the same
-    # two ranks averaged: being consistently good beats being erratic.
+    # idx 1 is 2nd in both lists (1/62 + 1/62 = 0.032258), which beats idx 0, first in one and last in
+    # the other (1/61 + 1/64 = 0.032018). Checked by computing it, an earlier version of this test
+    # asserted the opposite and was wrong. Steady beats erratic
     fused = reciprocal_rank_fusion([[0, 1, 2, 3], [3, 1, 2, 0]])
 
     assert fused[0] == 1
@@ -65,9 +54,7 @@ def test_rrf_with_a_single_ranking_returns_it_unchanged():
     assert reciprocal_rank_fusion([[2, 0, 1]]) == [2, 0, 1]
 
 
-# ---------------------------------------------------------------------------
-# sparse_search / dense_search / hybrid_search with fakes
-# ---------------------------------------------------------------------------
+# sparse, dense and hybrid search with fakes
 
 def test_sparse_search_ranks_the_lexically_matching_chunk_first():
     texts = ["This Agreement is governed by Delaware law.", "Fees are due within thirty days.", "Either party may terminate this Agreement."]
@@ -94,9 +81,7 @@ def test_build_index_rejects_empty_input():
         build_index([], embedder=FakeEmbedder({}))
 
 
-# ---------------------------------------------------------------------------
 # rerank
-# ---------------------------------------------------------------------------
 
 def test_rerank_only_scores_the_given_candidates_and_resorts_them():
     texts = ["irrelevant", "very relevant to the query", "somewhat relevant", "also irrelevant"]
@@ -135,9 +120,7 @@ def test_hybrid_search_fuses_sparse_and_dense_rankings():
     assert order[0] == 0  # matches on both lexical overlap and embedding similarity
 
 
-# ---------------------------------------------------------------------------
-# integration: real local models (open weights, no API key, no cost)
-# ---------------------------------------------------------------------------
+# the real models
 
 def test_real_models_rank_the_governing_law_clause_first_for_a_governing_law_query():
     texts = [

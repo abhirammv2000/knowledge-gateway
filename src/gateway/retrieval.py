@@ -1,16 +1,8 @@
-"""Sparse (BM25), dense (embedding cosine similarity), hybrid (reciprocal rank
-fusion of the two), and a cross-encoder reranking stage on top of any of them.
+"""BM25, dense search, hybrid (the two fused with reciprocal rank fusion), and a cross-encoder reranker on top.
 
-Models are loaded lazily and cached at module level, the same pattern as
-redaction.py's Presidio analyzer, so importing this module never pays the
-~4-second model-load cost until a search actually happens, and there's a
-single shared instance per process rather than one per call.
-
-Reciprocal rank fusion: score(d) = sum over rankers of 1 / (k + rank_r(d)),
-rank_r(d) = 1 for the top result of ranker r. k=60 is the constant from the
-original RRF paper (Cormack, Clarke & Buettcher, SIGIR 2009) and is what most
-implementations use unchanged; there's no dataset-specific reason to retune it
-here, so it's left as the paper's default rather than picked to fit this data.
+The models load the first time they're used and stay cached, like the Presidio analyzer in redaction.py,
+so importing this doesn't cost the ~4 second load. RRF scores a chunk as the sum of 1 / (k + rank) over the
+rankers. k=60 is the paper's value and I haven't tuned it to this data.
 """
 from __future__ import annotations
 
@@ -43,9 +35,7 @@ def get_reranker() -> CrossEncoder:
 
 
 def _tokenize(s: str) -> list[str]:
-    # Matches eval/chunking_eval.py's tokenizer so BM25 behavior is identical
-    # to what was already measured there, instead of introducing a second,
-    # different sparse-retrieval implementation.
+    # same tokenizer as chunking_eval.py, so BM25 behaves like it did in that eval
     import re
     return re.findall(r"\w+", s.lower())
 
@@ -73,23 +63,14 @@ def sparse_search(index: Index, query: str) -> list[int]:
 
 
 def dense_search(index: Index, query: str, embedder: SentenceTransformer | None = None) -> list[int]:
-    """Chunk indices ranked by cosine similarity, best first.
-
-    Embeddings are L2-normalized at index-build time, so a plain dot product
-    against a normalized query vector equals cosine similarity.
-    """
+    """Chunk indices ranked by cosine similarity, best first. The vectors are normalized, so a dot product is the cosine."""
     q = (embedder or get_embedder()).encode([query], normalize_embeddings=True, show_progress_bar=False)[0]
     scores = index.embeddings @ q
     return sorted(range(len(index.texts)), key=lambda i: (-scores[i], i))
 
 
 def reciprocal_rank_fusion(rankings: list[list[int]], k: int = RRF_K) -> list[int]:
-    """Combine multiple ranked-index lists into one, by RRF score descending.
-
-    An index missing from one ranking (e.g. it scored 0 and BM25Okapi still
-    returns it, so in practice every index appears in every input ranking
-    here) simply contributes 0 from that ranking rather than raising.
-    """
+    """Merge ranked lists into one by RRF score. An index missing from a list just adds 0 for that list."""
     scores: dict[int, float] = {}
     for ranking in rankings:
         for rank, idx in enumerate(ranking, start=1):
@@ -102,13 +83,8 @@ def hybrid_search(index: Index, query: str, embedder: SentenceTransformer | None
 
 
 def rerank(index: Index, query: str, candidate_idx: list[int], reranker: CrossEncoder | None = None) -> list[int]:
-    """Re-score a candidate list with a cross-encoder and return it re-sorted.
-
-    Only the candidates passed in are scored. This sits on top of
-    sparse_search/dense_search/hybrid_search's top-N; scoring every chunk
-    against the query with a cross-encoder is exactly the latency cost a
-    first retrieval stage exists to avoid.
-    """
+    """Re-score the candidates with the cross-encoder and return them re-sorted. Only the ones passed in are scored,
+    since scoring every chunk is the cost a first stage is there to avoid."""
     if not candidate_idx:
         return []
     pairs = [(query, index.texts[i]) for i in candidate_idx]

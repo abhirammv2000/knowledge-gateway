@@ -21,7 +21,7 @@ def body(n, prefix="word"):
     return " ".join(f"{prefix}{i}" for i in range(n))
 
 
-# ---- fixed window ----
+# fixed window
 
 def test_fixed_window_offsets_match_text_and_overlap_is_applied():
     text = " ".join(f"w{i}" for i in range(10))
@@ -43,7 +43,7 @@ def test_fixed_window_on_empty_text_is_empty():
     assert fixed_window_chunks("") == []
 
 
-# ---- structure aware ----
+# structure aware
 
 def test_each_clause_becomes_its_own_chunk_headed_by_its_heading():
     text = f"1. Payment. {body(30)}\n\n2. Termination. {body(30, 'x')}"

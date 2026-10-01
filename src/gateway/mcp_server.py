@@ -1,21 +1,10 @@
-"""The gateway as an MCP server, so an agent can search contracts and redact text.
-
-Three read-only tools:
-
-    list_contracts   find a contract by part of its title
-    search_contract  the best passages in one contract for a question
-    redact_text      replace personal data in a piece of text with tokens
-
-Run it over stdio, which is what Claude Desktop, Claude Code and most MCP clients
-launch:
+"""MCP server so an agent can search contracts and redact text. Three read-only tools: list_contracts,
+search_contract and redact_text.
 
     PYTHONPATH=src .venv/Scripts/python -m gateway.mcp_server
 
-stdout carries the protocol, so nothing in this process may print to it. Logs and
-the optional console trace go to stderr.
-
-Written against mcp 2.x, where the server class is MCPServer. The 1.x SDK called
-it FastMCP.
+It runs over stdio, so nothing here can print to stdout (that's the protocol). Logs and the console
+trace go to stderr. Written for mcp 2.x, where the class is MCPServer (it was FastMCP in 1.x).
 """
 from __future__ import annotations
 
@@ -38,7 +27,7 @@ mcp = MCPServer(
     ),
 )
 
-# All three tools only read. Nothing is written, deleted or sent anywhere.
+# all three only read
 _READ_ONLY = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 
 _service: GatewayService | None = None
@@ -52,12 +41,7 @@ def get_service() -> GatewayService:
 
 
 def _run(call: Callable[..., Any], *args: Any) -> Any:
-    """Run a service call and turn the failures a caller can fix into tool errors.
-
-    The SDK only passes on the message of a ToolError. Any other exception reaches
-    the client as a bare "Error executing tool" and a traceback in the server log,
-    which is no help to an agent that mistyped a contract title.
-    """
+    """Call the service and turn fixable mistakes into ToolErrors, since the SDK hides the message of any other exception."""
     try:
         return call(*args)
     except (ContractNotFound, ValueError, FileNotFoundError) as e:

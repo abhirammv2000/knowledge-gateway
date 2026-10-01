@@ -1,9 +1,5 @@
-"""Two chunkers over the same text, so they can be compared on equal terms.
-
-Every chunk carries character offsets into the ORIGINAL text. That is what lets
-eval/chunking_eval.py score retrieval against expert-marked clause spans no
-matter how a chunker splits or decorates the text it returns.
-"""
+"""Two chunkers over the same text, to compare them. Every chunk keeps character offsets into the original text,
+which is how chunking_eval.py scores it against the marked clause spans."""
 from __future__ import annotations
 
 import re
@@ -13,9 +9,8 @@ _WORD = re.compile(r"\S+")
 _BLANK_LINE = re.compile(r"\n[ \t]*\n")
 _SENTENCE_END = re.compile(r"(?<=[.;])\s+")
 
-# Numbered clause ("2.", "2.1 Payment"), ARTICLE/SECTION headings. Chosen from
-# the CUAD contracts themselves: numbered headings appear in 447 of 510,
-# ARTICLE/SECTION in 112, ALL-CAPS lines in 310.
+# numbered clauses ("2.", "2.1 Payment") and ARTICLE/SECTION headings, picked from the data: numbered
+# headings are in 447 of 510 contracts, ARTICLE/SECTION in 112, all-caps lines in 310
 _NUMBERED_OR_ARTICLE = re.compile(
     r"^\s*(?:(?:ARTICLE|Article|SECTION|Section)\s+[\dIVXivx]+\b|\d{1,2}(?:\.\d{1,2})*\.?\s+[A-Z])"
 )
@@ -115,15 +110,11 @@ def _split_span(text: str, start: int, end: int, max_words: int) -> list[tuple[i
 
 
 def structure_aware_chunks(text: str, max_words: int = 250, min_words: int = 40) -> list[Chunk]:
-    """One chunk per clause/section where possible.
+    """One chunk per clause where it can.
 
-    - A new section starts at each heading-like block (numbered clause,
-      ARTICLE/SECTION, short ALL-CAPS line).
-    - Sections under `min_words` are merged into the next one, so a bare
-      heading is not indexed on its own.
-    - A section over `max_words` is split at paragraph, sentence, then word
-      boundaries, and each later piece is prefixed with the section heading so
-      it stays interpretable on its own.
+    A new section starts at each heading (numbered clause, ARTICLE/SECTION, short all-caps line). Sections under
+    min_words are merged into the next one so a bare heading isn't indexed alone. Sections over max_words are split
+    at paragraphs, then sentences, then words, and later pieces get the heading put back in front.
     """
     blocks = _blocks(text)
     if not blocks:

@@ -1,14 +1,8 @@
-"""What the gateway does for a caller: list contracts, search inside one, redact text.
+"""What the MCP server calls: list contracts, search one, redact text.
 
-This is the layer the MCP server calls. The retrieval, chunking and redaction
-code it uses is the same code the evaluations measured, put together in the same
-order: structure-aware chunks, BM25 and dense search fused with RRF, then the
-cross-encoder over the top 10.
-
-Each stage of a search is its own tracing span, so a slow query shows whether the
-time went into building the index, the two searches, the fusion or the reranker.
-Spans carry sizes and timings only, never the query or any contract text (see
-tracing.py).
+It uses the same chunking, retrieval and redaction code the evals measured, in the same order
+(structure-aware chunks, BM25 and dense fused with RRF, cross-encoder on the top 10). Each stage of a
+search is its own trace span. Spans only hold sizes and timings, never the query or contract text.
 """
 from __future__ import annotations
 
@@ -44,7 +38,7 @@ class ContractNotFound(LookupError):
 
 
 class ContractStore:
-    """The CUAD contracts, read from the JSON file the evaluations use."""
+    """The CUAD contracts, from the same json file the evals use."""
 
     def __init__(self, path: str | Path | None = None) -> None:
         self.path = Path(path or os.environ.get("KG_CUAD_PATH") or DEFAULT_CUAD_PATH)
@@ -76,7 +70,7 @@ class ContractStore:
 class GatewayService:
     def __init__(self, store: ContractStore | None = None, embedder: Any = None, reranker: Any = None) -> None:
         self.store = store or ContractStore()
-        # None means the real models, loaded on first use (see retrieval.py)
+        # None means the real models
         self._embedder = embedder
         self._reranker = reranker
         self._indexes: OrderedDict[str, tuple[Index, list[str]]] = OrderedDict()
@@ -92,7 +86,7 @@ class GatewayService:
             return {"total": len(titles), "matched": len(matches), "titles": matches[:limit]}
 
     def _index_for(self, title: str) -> tuple[Index, list[str], bool]:
-        """The search index for one contract, built on first use and then kept (LRU)."""
+        """A contract's search index, built the first time and kept after that."""
         if title in self._indexes:
             self._indexes.move_to_end(title)
             index, texts = self._indexes[title]
@@ -156,8 +150,7 @@ class GatewayService:
             raise ValueError(f"text is {len(text)} characters, the limit is {MAX_REDACT_CHARS}")
 
         with get_tracer().start_as_current_span("kg.redact_text") as span:
-            # A fresh vault per call that is thrown away, so nothing sent through
-            # the server can be turned back into the original value.
+            # new vault every call, thrown away, so nothing can be turned back into the original
             result, _ = redact(text, vault=TokenVault())
             counts: dict[str, int] = {}
             for _, _, entity_type in result.spans:

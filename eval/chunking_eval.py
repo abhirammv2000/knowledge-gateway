@@ -1,28 +1,19 @@
-"""Compares fixed-window and structure-aware chunking on CUAD contracts.
+"""Compare fixed-window and structure-aware chunking on the CUAD contracts.
 
 Run from the repo root (needs data/raw/CUAD_v1.json, see README):
     PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
 
-Definitions, fixed before running:
-- Each question is answered within its own contract, so retrieval ranks only
-  that contract's chunks. (CUAD's clause questions are per-contract.)
-- Retrieval is BM25 over lowercase word tokens. It is deliberately simple and
-  free: it isolates the effect of chunking from any embedding model.
-- Query = the clause category plus CUAD's own one-line description of it. The
-  rest of the CUAD question text is identical boilerplate and is dropped.
-- Only questions with at least one expert-marked answer span are scored.
-- Hit@k: the union of the top-k chunks covers at least 50% of the characters of
-  at least one gold answer span.
-- Span integrity: fraction of gold spans that lie entirely inside a single
-  chunk. Independent of retrieval; measures how often a chunker cuts a clause.
-- Uncertainty: 95% bootstrap interval over CONTRACTS (not questions) for the
-  paired differences, since questions within a contract are correlated.
-- Equal-context comparison: structure-aware chunks are smaller on average, so
-  equal top-k gives the fixed-window system more text. Hit at a word budget
-  (500, 1000, 1250) retrieves ranked chunks until the budget is used. This was
-  added AFTER seeing the equal-top-k result, to address that confound; both
-  are reported. The primary budget (1250 words = top-5 of fixed windows) was
-  declared before the budgeted run.
+How it's scored:
+- Each question is answered inside its own contract, and retrieval is BM25 over lowercase words (simple on
+  purpose, so the effect of chunking isn't mixed up with an embedding model).
+- The query is the clause category plus CUAD's one-line description of it. Only questions with at least one
+  marked answer span count.
+- Hit@k: the top k chunks cover at least half the characters of some gold answer span.
+- Span integrity: the share of gold spans that sit inside a single chunk, which says how often a chunker cuts a clause.
+- 95% bootstrap interval over contracts (not questions), since questions in a contract are correlated.
+- Structure-aware chunks are smaller, so equal top-k gives fixed windows more text. I added a word budget comparison
+  (500, 1000, 1250) after seeing that result, and report both. The main budget, 1250 words (top 5 of fixed windows),
+  was chosen before that run.
 
 Both chunkers cap chunks at about 250 words.
 """

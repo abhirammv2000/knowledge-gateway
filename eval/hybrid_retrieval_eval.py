@@ -1,35 +1,16 @@
-"""Compares BM25-only, dense-only, hybrid (RRF of the two), and hybrid+rerank
-retrieval on CUAD, on top of structure-aware chunking.
+"""BM25 only, dense only, hybrid (RRF) and hybrid plus rerank on CUAD, on structure-aware chunks.
 
 Run from the repo root (needs data/raw/CUAD_v1.json, see README):
     PYTHONPATH=src .venv/Scripts/python eval/hybrid_retrieval_eval.py
 
-Reuses eval/chunking_eval.py's question parsing, span-coverage scoring, and
-bootstrap-CI method, so this file only adds the retrieval methods being
-compared, not a second scoring implementation.
+The question parsing, span scoring and bootstrap come from chunking_eval.py, so this only adds the retrieval
+methods. Structure-aware chunking is the base because it tied fixed windows on retrieval at equal context while
+cutting fewer clauses. Models are all-MiniLM-L6-v2 and cross-encoder/ms-marco-MiniLM-L-6-v2, both open and run
+on cpu.
 
-Why structure-aware chunking as the base, not fixed-window: eval/chunking_eval.py
-found the two tie on retrieval at equal context (95% CI included zero) while
-structure-aware cuts about 3.7 fewer points of clauses across a chunk
-boundary. Since they're a statistical tie on the thing chunking_eval measured,
-the tiebreaker (clause integrity) picks structure-aware as the one to build on.
-
-Models: all-MiniLM-L6-v2 for embeddings, cross-encoder/ms-marco-MiniLM-L-6-v2
-for reranking. Both open-weight, run on CPU, no API key and no cost. See
-src/gateway/retrieval.py's docstring for why these two specifically.
-
-Reranking pool: hybrid's top RERANK_POOL candidates are rerank-scored and
-re-sorted; anything beyond that stays in hybrid order. Reranking every chunk
-in a large contract with a cross-encoder is the exact cost a first-stage
-retriever exists to avoid, so only a bounded pool is ever rescored.
-
-RERANK_POOL=10, not larger: a timing test on this machine (CrossEncoder on
-CPU, no GPU available) measured ~16-18ms per (query, chunk) pair, and that
-figure held whether pairs were sent as many small per-question calls or one
-large batched call per contract, so it's compute-bound, not call-overhead. At
-pool=15 across all 6,702 scored questions that projects to roughly 2.2 hours;
-pool=10 was chosen to bring that down to a more reasonable run while still
-giving the reranker twice the candidates Hit@5 needs to work with.
+Only the top RERANK_POOL hybrid results are reranked and the rest keep their order. The pool is 10 because the
+cross-encoder took about 16 to 18 ms per (query, chunk) pair on this machine whether batched or not, so a pool of 15
+over all 6,702 questions would take about 2.2 hours.
 """
 from __future__ import annotations
 

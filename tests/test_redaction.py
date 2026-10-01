@@ -11,8 +11,7 @@ def test_email_is_replaced_by_one_token_not_split_into_url_fragments():
 
 
 def test_structurally_valid_ssn_is_redacted():
-    # 123-45-6789 is deliberately not used: Presidio rejects known-invalid SSNs,
-    # so it would not be detected and the test would say nothing about redaction.
+    # not 123-45-6789, presidio rejects invalid ssns so it wouldn't be found
     result, _ = redact("Employee SSN: 536-90-4399.")
 
     assert "536-90-4399" not in result.text
