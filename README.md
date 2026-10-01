@@ -2,7 +2,7 @@
 
 A retrieval gateway for enterprise data: legal documents, relational tables and external APIs behind one query interface, with PII redaction before anything is indexed.
 
-**Status: early, but the retrieval core is built and measured.** PII redaction, legal-contract chunking, and hybrid retrieval with reranking are all built and evaluated on real data (see below). Query routing across documents/SQL/APIs, cost controls, and MCP/A2A exposure are still planned, see [Planned](#planned).
+**Status: early, but the retrieval core is built and measured.** PII redaction, legal-contract chunking, and hybrid retrieval with reranking are all built and evaluated on real data (see below), and are available to an agent over MCP with tracing. Query routing across documents/SQL/APIs, cost controls and A2A exposure are still planned, see [Planned](#planned).
 
 ## Built
 
@@ -82,7 +82,7 @@ The result isn't the simple "hybrid beats everything" story I expected:
 
 ```bash
 py -3.12 -m venv .venv
-.venv/Scripts/python -m pip install presidio-analyzer presidio-anonymizer pytest pytest-asyncio faker rank-bm25 numpy sentence-transformers
+.venv/Scripts/python -m pip install presidio-analyzer presidio-anonymizer pytest pytest-asyncio faker rank-bm25 numpy sentence-transformers mcp opentelemetry-sdk
 .venv/Scripts/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 .venv/Scripts/python -m spacy download en_core_web_lg
 .venv/Scripts/python -m pytest
@@ -95,8 +95,46 @@ PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
 PYTHONPATH=src .venv/Scripts/python eval/hybrid_retrieval_eval.py   # ~2 hours on CPU
 ```
 
+### MCP server and tracing (`src/gateway/mcp_server.py`, `service.py`, `tracing.py`)
+
+The parts above are available to an agent over MCP as three read-only tools: `list_contracts` (find a contract by part of its title), `search_contract` (the best passages in one contract for a question) and `redact_text` (replace personal data with tokens). `search_contract` runs what the evaluations measured: structure-aware chunks, BM25 and dense search fused with RRF, then the cross-encoder over the top 10. A contract's index is built on first use and the last 8 are kept in memory.
+
+Things I learned or decided along the way:
+
+- It is written against the mcp 2.x SDK, where the server class is `MCPServer` (1.x called it `FastMCP`).
+- The SDK only passes the message of a `ToolError` on to the client. Any other exception reaches the agent as a bare "Error executing tool". My first version let a mistyped contract title do that, so the failures a caller can fix (unknown title, empty query, `top_k` out of range, missing data file) are now raised as tool errors that say what to do.
+- `redact_text` uses a fresh token vault for each call and throws it away, so nothing sent through the server can be turned back into the original value.
+- `search_contract` returns contract text, which can contain personal data. The server's instructions tell the agent to redact it before showing or storing it, but the server does not do that for it.
+
+Tracing is OpenTelemetry and off by default. `KG_TRACE_FILE=traces.jsonl` writes one JSON line per span, `KG_TRACE_CONSOLE=1` prints spans to stderr (stdout belongs to the protocol), and `OTEL_EXPORTER_OTLP_ENDPOINT` sends them to an OTLP/HTTP collector (`pip install opentelemetry-exporter-otlp-proto-http`). Each search is one span with a child for chunking, index build, BM25, dense search, fusion and rerank, so a slow query shows where the time went. Spans hold sizes and timings and never the text of a query or a contract. A test enforces that, and I confirmed it fails when the query is deliberately added to a span.
+
+Timings from one run on this CPU-only machine, on a real CUAD contract of 66 chunks: the first search took 9.9 s (7.1 s building the index, which includes loading the embedding model, and 2.7 s in the reranker, which includes loading it), and later searches in the same contract took about 1 s with the reranker and 0.06 s without. The first redaction call takes about 4 s while spaCy loads. These are single runs, not a benchmark.
+
+How it was checked: 25 new tests (73 in all). Every tool is called through a real MCP client in-process, and one test starts the server as a subprocess over stdio with the real models, runs the three tools and reads the trace file. For OTLP I pointed the exporter at a small local OTLP/HTTP receiver and parsed what arrived: the right service name, nested spans and no query text. I did not run it against Jaeger or another real backend.
+
+```bash
+.venv/Scripts/python -m pip install mcp opentelemetry-sdk
+PYTHONPATH=src .venv/Scripts/python -m gateway.mcp_server
+```
+
+To use it from an MCP client that launches stdio servers, point it at that command, for example:
+
+```json
+{
+  "mcpServers": {
+    "knowledge-gateway": {
+      "command": "C:/path/to/knowledge-gateway/.venv/Scripts/python.exe",
+      "args": ["-m", "gateway.mcp_server"],
+      "env": { "PYTHONPATH": "C:/path/to/knowledge-gateway/src" }
+    }
+  }
+}
+```
+
+The stdio test launches it the same way, but I have not tried it in Claude Desktop or Claude Code themselves. It only searches the CUAD contracts, has no access control, and keeps one process-wide cache.
+
 ## Planned
 
 - Query routing across documents, SQL and an external API, with a guarded read-only text-to-SQL path
-- Cost controls (semantic cache, model routing) and tracing
-- Exposure over MCP and A2A
+- Cost controls (semantic cache, model routing)
+- Exposure over A2A
