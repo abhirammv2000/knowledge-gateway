@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+eval/results
+tests
+db
+data/agent
+data/raw/*
+!data/raw/CUAD_v1.json
+.github

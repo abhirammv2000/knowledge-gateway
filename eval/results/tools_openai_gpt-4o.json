@@ -9,8 +9,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.009926,
-  "seconds": 21.547,
+  "cost_usd": 0.010195,
+  "seconds": 17.344,
   "found": false,
   "stop_reason": "answered",
   "question": "What is the governing law?"
@@ -25,9 +25,9 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.017188,
-  "seconds": 26.234,
-  "found": false,
+  "cost_usd": 0.013008,
+  "seconds": 19.953,
+  "found": true,
   "stop_reason": "answered",
   "question": "What is how it can be terminated?"
  },
@@ -41,8 +41,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.009821,
-  "seconds": 21.844,
+  "cost_usd": 0.010271,
+  "seconds": 17.672,
   "found": true,
   "stop_reason": "answered",
   "question": "What is the payment terms?"
@@ -57,8 +57,75 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.009873,
-  "seconds": 8.094,
+  "cost_usd": 0.009611,
+  "seconds": 5.578,
+  "found": true,
+  "stop_reason": "answered",
+  "question": "What is the term of the agreement?"
+ },
+ {
+  "kind": "exact",
+  "pass": false,
+  "problems": [
+   "listed contracts although the exact title was given"
+  ],
+  "calls": [
+   "list_contracts",
+   "search_contract"
+  ],
+  "tool_calls": 2,
+  "failed": 0,
+  "made_up": 0,
+  "cost_usd": 0.012556,
+  "seconds": 5.766,
+  "found": true,
+  "stop_reason": "answered",
+  "question": "What is the governing law?"
+ },
+ {
+  "kind": "exact",
+  "pass": true,
+  "problems": [],
+  "calls": [
+   "search_contract"
+  ],
+  "tool_calls": 1,
+  "failed": 0,
+  "made_up": 0,
+  "cost_usd": 0.007398,
+  "seconds": 6.547,
+  "found": false,
+  "stop_reason": "answered",
+  "question": "What is how it can be terminated?"
+ },
+ {
+  "kind": "exact",
+  "pass": true,
+  "problems": [],
+  "calls": [
+   "search_contract"
+  ],
+  "tool_calls": 1,
+  "failed": 0,
+  "made_up": 0,
+  "cost_usd": 0.010181,
+  "seconds": 2.766,
+  "found": false,
+  "stop_reason": "answered",
+  "question": "What is the payment terms?"
+ },
+ {
+  "kind": "exact",
+  "pass": true,
+  "problems": [],
+  "calls": [
+   "search_contract"
+  ],
+  "tool_calls": 1,
+  "failed": 0,
+  "made_up": 0,
+  "cost_usd": 0.010555,
+  "seconds": 3.844,
   "found": true,
   "stop_reason": "answered",
   "question": "What is the term of the agreement?"
@@ -73,72 +140,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.0172,
-  "seconds": 10.125,
-  "found": false,
-  "stop_reason": "answered",
-  "question": "What is the governing law?"
- },
- {
-  "kind": "exact",
-  "pass": true,
-  "problems": [],
-  "calls": [
-   "search_contract"
-  ],
-  "tool_calls": 1,
-  "failed": 0,
-  "made_up": 0,
-  "cost_usd": 0.007208,
-  "seconds": 4.313,
-  "found": false,
-  "stop_reason": "answered",
-  "question": "What is how it can be terminated?"
- },
- {
-  "kind": "exact",
-  "pass": true,
-  "problems": [],
-  "calls": [
-   "search_contract"
-  ],
-  "tool_calls": 1,
-  "failed": 0,
-  "made_up": 0,
-  "cost_usd": 0.009771,
-  "seconds": 3.547,
-  "found": false,
-  "stop_reason": "answered",
-  "question": "What is the payment terms?"
- },
- {
-  "kind": "exact",
-  "pass": true,
-  "problems": [],
-  "calls": [
-   "search_contract"
-  ],
-  "tool_calls": 1,
-  "failed": 0,
-  "made_up": 0,
-  "cost_usd": 0.010605,
-  "seconds": 12.578,
-  "found": true,
-  "stop_reason": "answered",
-  "question": "What is the term of the agreement?"
- },
- {
-  "kind": "exact",
-  "pass": true,
-  "problems": [],
-  "calls": [
-   "search_contract"
-  ],
-  "tool_calls": 1,
-  "failed": 0,
-  "made_up": 0,
-  "cost_usd": 0.010513,
-  "seconds": 12.14,
+  "cost_usd": 0.010393,
+  "seconds": 4.734,
   "found": true,
   "stop_reason": "answered",
   "question": "What is the governing law?"
@@ -153,10 +156,10 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.03742,
-  "seconds": 23.14,
-  "found": false,
-  "stop_reason": "refused_unverified",
+  "cost_usd": 0.013057,
+  "seconds": 7.641,
+  "found": true,
+  "stop_reason": "answered",
   "question": "What is how it can be terminated?"
  },
  {
@@ -169,8 +172,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.008466,
-  "seconds": 12.156,
+  "cost_usd": 0.008875,
+  "seconds": 4.343,
   "found": true,
   "stop_reason": "answered",
   "question": "What is the payment terms?"
@@ -185,8 +188,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.012049,
-  "seconds": 13.016,
+  "cost_usd": 0.012051,
+  "seconds": 5.078,
   "found": false,
   "stop_reason": "answered",
   "question": "What is the term of the agreement?"
@@ -202,8 +205,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.011076,
-  "seconds": 4.406,
+  "cost_usd": 0.011395,
+  "seconds": 3.922,
   "found": true,
   "stop_reason": "answered",
   "question": "In the BOLIVARMININGCORP agreement, what is the governing law?"
@@ -214,15 +217,14 @@
   "problems": [],
   "calls": [
    "list_contracts",
-   "search_contract",
    "search_contract"
   ],
-  "tool_calls": 3,
+  "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.043474,
-  "seconds": 30.39,
-  "found": false,
+  "cost_usd": 0.025595,
+  "seconds": 15.484,
+  "found": true,
   "stop_reason": "answered",
   "question": "In the FTENETWORKS,INC agreement, what is how it can be terminated?"
  },
@@ -237,8 +239,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.012701,
-  "seconds": 24.453,
+  "cost_usd": 0.012091,
+  "seconds": 8.672,
   "found": true,
   "stop_reason": "answered",
   "question": "In the INTERNATIONALFASTFOODCORP agreement, what is the payment terms?"
@@ -254,8 +256,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.018982,
-  "seconds": 26.672,
+  "cost_usd": 0.012744,
+  "seconds": 8.938,
   "found": true,
   "stop_reason": "answered",
   "question": "In the PenntexMidstreamPartnersLp agreement, what is the term of the agreement?"
@@ -271,8 +273,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.011498,
-  "seconds": 9.281,
+  "cost_usd": 0.011548,
+  "seconds": 5.828,
   "found": true,
   "stop_reason": "answered",
   "question": "In the SPOKHOLDINGS,INC agreement, what is the governing law?"
@@ -288,8 +290,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.012315,
-  "seconds": 62.047,
+  "cost_usd": 0.014405,
+  "seconds": 6.937,
   "found": true,
   "stop_reason": "answered",
   "question": "In the ARMSTRONGFLOORING,INC agreement, what is how it can be terminated?"
@@ -305,8 +307,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.019598,
-  "seconds": 64.063,
+  "cost_usd": 0.018823,
+  "seconds": 7.078,
   "found": false,
   "stop_reason": "answered",
   "question": "In the ConformisInc agreement, what is the payment terms?"
@@ -322,8 +324,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.009368,
-  "seconds": 59.437,
+  "cost_usd": 0.009098,
+  "seconds": 4.938,
   "found": false,
   "stop_reason": "answered",
   "question": "In the DYNAMEXINC agreement, what is the term of the agreement?"
@@ -339,9 +341,9 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.018675,
-  "seconds": 10.859,
-  "found": true,
+  "cost_usd": 0.017043,
+  "seconds": 7.016,
+  "found": false,
   "stop_reason": "answered",
   "question": "In the MEETGROUP,INC agreement, what is the governing law?"
  },
@@ -356,8 +358,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.012893,
-  "seconds": 10.625,
+  "cost_usd": 0.012193,
+  "seconds": 3.984,
   "found": true,
   "stop_reason": "answered",
   "question": "In the SIBANNAC,INC agreement, what is how it can be terminated?"
@@ -373,9 +375,9 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.018476,
-  "seconds": 11.859,
-  "found": false,
+  "cost_usd": 0.020979,
+  "seconds": 9.25,
+  "found": true,
   "stop_reason": "answered",
   "question": "In the SUMMAFOURINC agreement, what is the payment terms?"
  },
@@ -390,8 +392,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.010565,
-  "seconds": 10.282,
+  "cost_usd": 0.010795,
+  "seconds": 9.094,
   "found": true,
   "stop_reason": "answered",
   "question": "In the FIBROGENINC agreement, what is the term of the agreement?"
@@ -406,8 +408,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004288,
-  "seconds": 7.922,
+  "cost_usd": 0.004308,
+  "seconds": 2.641,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Zephyr Quantum Holdings agreement, what is the governing law?"
@@ -424,8 +426,8 @@
   "tool_calls": 3,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.008731,
-  "seconds": 7.719,
+  "cost_usd": 0.008901,
+  "seconds": 6.672,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Blue Harbor Maritime Trust agreement, what is how it can be terminated?"
@@ -441,8 +443,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.006546,
-  "seconds": 3.109,
+  "cost_usd": 0.006515,
+  "seconds": 2.547,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Northwind Orchard Cooperative agreement, what is the payment terms?"
@@ -452,14 +454,13 @@
   "pass": true,
   "problems": [],
   "calls": [
-   "list_contracts",
    "list_contracts"
   ],
-  "tool_calls": 2,
+  "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.007246,
-  "seconds": 2.89,
+  "cost_usd": 0.004298,
+  "seconds": 1.796,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Silverpine Robotics agreement, what is the term of the agreement?"
@@ -474,8 +475,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004248,
-  "seconds": 1.843,
+  "cost_usd": 0.004348,
+  "seconds": 1.656,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Halcyon Textile Partners agreement, what is the governing law?"
@@ -485,14 +486,13 @@
   "pass": true,
   "problems": [],
   "calls": [
-   "list_contracts",
    "list_contracts"
   ],
-  "tool_calls": 2,
+  "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.008408,
-  "seconds": 2.656,
+  "cost_usd": 0.004378,
+  "seconds": 1.594,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Marrow Creek Mining agreement, what is how it can be terminated?"
@@ -507,8 +507,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004378,
-  "seconds": 1.969,
+  "cost_usd": 0.004368,
+  "seconds": 1.75,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Oakridge Dental Group agreement, what is the payment terms?"
@@ -518,15 +518,13 @@
   "pass": true,
   "problems": [],
   "calls": [
-   "list_contracts",
-   "list_contracts",
    "list_contracts"
   ],
-  "tool_calls": 3,
+  "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.008995,
-  "seconds": 3.547,
+  "cost_usd": 0.004372,
+  "seconds": 1.844,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Tidewater Analytics agreement, what is the term of the agreement?"
@@ -541,8 +539,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004282,
-  "seconds": 2.031,
+  "cost_usd": 0.004363,
+  "seconds": 1.953,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Ember Valley Brewing agreement, what is the governing law?"
@@ -558,8 +556,8 @@
   "tool_calls": 2,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.010351,
-  "seconds": 2.594,
+  "cost_usd": 0.006566,
+  "seconds": 2.5,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Pinnacle Glass Works agreement, what is how it can be terminated?"
@@ -574,8 +572,8 @@
   "tool_calls": 1,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004308,
-  "seconds": 2.125,
+  "cost_usd": 0.004368,
+  "seconds": 1.703,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Juniper Satellite Services agreement, what is the payment terms?"
@@ -585,13 +583,15 @@
   "pass": true,
   "problems": [],
   "calls": [
+   "list_contracts",
+   "list_contracts",
    "list_contracts"
   ],
-  "tool_calls": 1,
+  "tool_calls": 3,
   "failed": 0,
   "made_up": 0,
-  "cost_usd": 0.004412,
-  "seconds": 1.844,
+  "cost_usd": 0.016246,
+  "seconds": 3.438,
   "found": false,
   "stop_reason": "answered",
   "question": "In the Granite Harbor Foods agreement, what is the term of the agreement?"

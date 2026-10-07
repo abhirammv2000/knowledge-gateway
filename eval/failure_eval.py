@@ -67,6 +67,14 @@ async def main() -> None:
     service = GatewayService()
     rows = []
 
+    # The backup model has to work, or every scenario fails for a reason that has nothing to do with the agent.
+    # Better to stop than to save a table of failures that looks like a result.
+    try:
+        probe = RouterLLM(settings, models=[GOOD], with_fallbacks=False)
+        await probe.complete([{"role": "user", "content": "Say ok."}], [])
+    except Exception as exc:
+        sys.exit(f"{GOOD} does not answer ({type(exc).__name__}). Check the API key and credit. Nothing was saved.")
+
     def answered_by_backup(result):
         return result.stop_reason == "answered" and result.verified and result.fallback_used
 
