@@ -114,3 +114,47 @@ def test_entries_survive_a_restart(tmp_path, clock):
     SemanticCache(embed, path, threshold=0.9, clock=clock).put("terminate notice", "Acme", "m", ANSWER)
 
     assert SemanticCache(embed, path, threshold=0.9, clock=clock).get("terminate notice", "Acme", "m") is not None
+
+
+# the guard against questions that read alike but ask different things
+
+def same_vector(text):
+    return np.array([1.0, 0.0, 0.0])  # every question is identical to the embedder, so only the guard can tell
+
+
+@pytest.mark.parametrize("stored, asked", [
+    ("Is a 30 day notice required to terminate?", "Is a 90 day notice required to terminate?"),
+    ("Does the agreement allow assignment?", "Does the agreement prohibit assignment?"),
+    ("Is the license exclusive?", "Is the license non-exclusive?"),
+    ("Can the supplier terminate for breach?", "Can the customer terminate for breach?"),
+    ("Is there a cap on liability?", "Is liability unlimited?"),
+    ("Does the contract renew automatically?", "Does the contract expire without renewal?"),
+    ("Does the warranty last two years?", "Does the warranty last ten years?"),
+])
+def test_the_guard_refuses_a_flipped_question_even_if_the_embedding_is_identical(stored, asked, clock):
+    cache = SemanticCache(same_vector, threshold=0.5, clock=clock)
+    cache.put(stored, "Acme", "m", ANSWER)
+
+    assert cache.get(asked, "Acme", "m") is None
+
+
+def test_the_guard_lets_a_paraphrase_through(clock):
+    cache = SemanticCache(same_vector, threshold=0.5, clock=clock)
+    cache.put("How much notice is required to terminate this agreement?", "Acme", "m", ANSWER)
+
+    assert cache.get("What is the notice period for terminating the agreement?", "Acme", "m") is not None
+
+
+def test_without_the_guard_the_flip_is_served_the_wrong_answer(clock):
+    cache = SemanticCache(same_vector, threshold=0.5, clock=clock, guard=False)
+    cache.put("Is a 30 day notice required?", "Acme", "m", ANSWER)
+
+    assert cache.get("Is a 90 day notice required?", "Acme", "m") is not None
+
+
+def test_a_question_is_matched_to_the_stored_one_with_the_same_markers(clock):
+    cache = SemanticCache(same_vector, threshold=0.5, clock=clock)
+    cache.put("Is a 30 day notice required?", "Acme", "m", {"answer": "thirty"})
+    cache.put("Is a 90 day notice required?", "Acme", "m", {"answer": "ninety"})
+
+    assert cache.get("Is a 90 day notice required?", "Acme", "m").answer == {"answer": "ninety"}

@@ -50,6 +50,10 @@ class Settings:
     max_citation_repairs: int = field(default_factory=lambda: _int("AGENT_MAX_CITATION_REPAIRS", 2))
     max_question_chars: int = field(default_factory=lambda: _int("AGENT_MAX_QUESTION_CHARS", 2000))
 
+    # Turn the defences against hostile contract text off. Only the prompt-injection eval does this,
+    # to measure what the defences are worth. It must stay on in anything real.
+    harden: bool = field(default_factory=lambda: os.environ.get("AGENT_HARDEN", "1") != "0")
+
     # a secret-looking string placed in the system prompt. If it ever shows up in an
     # answer, something got the model to leak its instructions.
     canary: str = field(default_factory=lambda: os.environ.get("AGENT_CANARY", "KG-CANARY-7f3a91c2"))

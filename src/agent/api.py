@@ -26,11 +26,11 @@ from pydantic import BaseModel, Field
 from agent import metrics
 from agent.accounts import Accounts, ApiKey, Denied
 from agent.cache import SemanticCache
+from agent.embeddings import DEFAULT_THRESHOLDS, make_embedder
 from agent.config import Settings, get_settings
 from agent.llm import RouterLLM
 from agent.memory import Memory
 from agent.service import AgentService, BadRequest
-from agent.tools import model_lock
 from gateway.service import GatewayService
 
 log = logging.getLogger("agent.api")
@@ -45,25 +45,19 @@ class AskRequest(BaseModel):
 
 def build_service(settings: Settings | None = None) -> AgentService:
     """The real service: real models, real databases under AGENT_DATA_DIR."""
-    from gateway.retrieval import get_embedder
-
     settings = settings or get_settings()
     data = Path(os.environ.get("AGENT_DATA_DIR", "./data/agent"))
     data.mkdir(parents=True, exist_ok=True)
 
-    embedder = get_embedder()
-
-    def _embed(text: str):
-        with model_lock:
-            return embedder.encode([text], normalize_embeddings=True)[0]
-
+    kind = os.environ.get("AGENT_CACHE_EMBEDDER", "openai")
     accounts = Accounts(
         data / "accounts.db",
         global_daily_budget_usd=float(os.environ.get("AGENT_GLOBAL_DAILY_BUDGET_USD", "5.0")),
     )
+    # one cache file per embedder, because vectors from different models cannot be compared
     cache = SemanticCache(
-        _embed, data / "cache.db",
-        threshold=float(os.environ.get("AGENT_CACHE_THRESHOLD", "0.92")),
+        make_embedder(kind), data / f"cache_{kind}.db",
+        threshold=float(os.environ.get("AGENT_CACHE_THRESHOLD", DEFAULT_THRESHOLDS[kind])),
     )
     return AgentService(
         settings, RouterLLM(settings), GatewayService(), Memory(data / "memory.db"), accounts, cache,

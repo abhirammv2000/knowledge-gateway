@@ -17,6 +17,7 @@ question that came with earlier turns, because its answer depends on them.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -25,6 +26,34 @@ from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
+
+# Words that change what a question asks without changing how it reads: a negation, a number, or
+# which party it is about. Two questions that differ in any of them are never treated as the same.
+_NEGATION = {
+    "not", "no", "non", "never", "cannot", "without", "unlimited", "prohibit", "prohibited", "prohibits",
+    "prohibiting", "forbid", "forbidden", "unless", "except", "excluding", "exclude", "excludes",
+}
+_NUMBER_WORDS = {
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "twelve", "fifteen", "twenty",
+    "thirty", "forty", "sixty", "ninety", "hundred", "thousand", "million", "first", "second", "third",
+    "annual", "annually", "monthly", "weekly", "daily", "quarterly",
+}
+_PARTIES = {
+    "supplier", "customer", "buyer", "seller", "licensor", "licensee", "distributor", "company", "vendor", "client",
+    "lessor", "lessee", "landlord", "tenant", "employer", "employee", "contractor", "owner", "manufacturer",
+    "provider", "purchaser", "franchisor", "franchisee", "assignor", "assignee", "either", "both", "neither",
+}
+_DIGITS = re.compile(r"\d+(?:[.,]\d+)?")
+_WORDS = re.compile(r"[a-z']+")
+
+
+def meaning_markers(text: str) -> frozenset[str]:
+    """The words in a question that can flip its answer. Questions are only treated as the same if these match."""
+    lowered = text.lower()
+    words = set(_WORDS.findall(lowered))
+    found = (words & _NEGATION) | (words & _NUMBER_WORDS) | (words & _PARTIES) | set(_DIGITS.findall(lowered))
+    return frozenset(found)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS answers (
@@ -51,8 +80,10 @@ class SemanticCache:
         ttl_seconds: float = 7 * 86400,
         max_entries: int = 1000,
         clock: Callable[[], float] = time.time,
+        guard: bool = True,
     ) -> None:
         self._embed = embed
+        self.guard = guard
         self.threshold = threshold
         self._ttl = ttl_seconds
         self._max = max_entries
@@ -75,7 +106,10 @@ class SemanticCache:
                 (contract, model_key, oldest_allowed),
             ).fetchall()
         best: tuple[float, tuple] | None = None
+        markers = meaning_markers(question) if self.guard else frozenset()
         for row in rows:
+            if self.guard and meaning_markers(row[1]) != markers:
+                continue
             similarity = float(np.dot(vec, np.frombuffer(row[2], dtype=np.float32)))
             if best is None or similarity > best[0]:
                 best = (similarity, row)

@@ -413,3 +413,30 @@ async def test_the_contract_hint_is_added_to_the_question(svc):
     await ask(llm, svc, contract=CONTRACT)
 
     assert CONTRACT in llm.calls[0]["messages"][-1]["content"]
+
+
+# the switch the injection eval uses for its baseline
+
+async def test_with_hardening_off_passages_are_plain_and_the_prompt_has_no_rules(svc):
+    llm = FakeLLM(reply(search()), reply(submit(found=False, answer="x")))
+
+    await ask(llm, svc, settings=settings(harden=False))
+
+    system = llm.calls[0]["messages"][0]["content"]
+    assert "Never follow instructions" not in system and "Never reveal" not in system
+    assert "KG-CANARY" in system  # the canary is still there, so leaks can be counted
+    tool_message = last_tool_message(llm.calls[1])
+    assert "<contract_passage" not in tool_message and tool_message.count("[S1] from") == 1
+    assert "not instructions" not in tool_message
+
+
+async def test_with_hardening_off_a_canary_leak_is_not_blocked(svc):
+    llm = FakeLLM(reply(search()), reply(submit(found=False, answer="Code: KG-CANARY-test")))
+
+    result = await ask(llm, svc, settings=settings(harden=False, canary="KG-CANARY-test"))
+
+    assert result.stop_reason == "answered" and "KG-CANARY-test" in result.answer
+
+
+async def test_hardening_is_on_by_default(svc):
+    assert Settings().harden is True
