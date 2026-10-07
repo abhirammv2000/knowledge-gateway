@@ -57,6 +57,14 @@ def _retry_policy() -> RetryPolicy:
     )
 
 
+def deployment_params(settings: Settings, model: str) -> dict[str, Any]:
+    """The LiteLLM settings for one model. Anthropic's current models refuse a temperature, so they get none."""
+    params: dict[str, Any] = {"model": model}
+    if not model.startswith("anthropic/"):
+        params["temperature"] = settings.temperature
+    return params
+
+
 def build_router(settings: Settings, models: list[str] | None = None, with_fallbacks: bool = True) -> Router:
     """A router for the primary model and its fallbacks, or for an explicit list of models.
 
@@ -69,7 +77,7 @@ def build_router(settings: Settings, models: list[str] | None = None, with_fallb
     if with_fallbacks and len(chain) > 1:
         kwargs["fallbacks"] = [{names[0]: names[1:]}]
     return Router(
-        model_list=[{"model_name": n, "litellm_params": {"model": m}} for n, m in zip(names, chain)],
+        model_list=[{"model_name": n, "litellm_params": deployment_params(settings, m)} for n, m in zip(names, chain)],
         timeout=settings.request_timeout_seconds,
         num_retries=settings.num_retries,
         retry_policy=_retry_policy(),

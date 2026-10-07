@@ -29,6 +29,9 @@ def _list(name: str, default: str) -> list[str]:
 
 @dataclass(frozen=True)
 class Settings:
+    # 0 makes answers repeatable. Newer Claude models reject the parameter, so it is only sent to the others.
+    temperature: float = field(default_factory=lambda: _float("AGENT_TEMPERATURE", 0.0))
+
     # the model that answers, then the ones tried in order if it fails
     primary_model: str = field(default_factory=lambda: os.environ.get("AGENT_PRIMARY_MODEL", "anthropic/claude-sonnet-5-5"))
     fallback_models: list[str] = field(

@@ -65,3 +65,22 @@ async def test_usage_and_cost_come_back_in_one_reply():
     assert reply.input_tokens >= 0 and reply.output_tokens >= 0 and reply.cost_usd >= 0
     assert reply.message["role"] == "assistant" and reply.message["content"] == "hello"
     assert reply.model
+
+
+def test_temperature_is_sent_to_every_model_except_anthropic():
+    from agent.llm import deployment_params
+
+    settings = Settings(temperature=0.0)
+
+    assert deployment_params(settings, "openai/gpt-4o") == {"model": "openai/gpt-4o", "temperature": 0.0}
+    assert deployment_params(settings, "gemini/gemini-3.6-flash")["temperature"] == 0.0
+    assert deployment_params(settings, "anthropic/claude-sonnet-5-5") == {"model": "anthropic/claude-sonnet-5-5"}
+
+
+async def test_the_built_router_carries_the_temperature():
+    from agent.llm import build_router
+
+    router = build_router(Settings(temperature=0.0), ["openai/gpt-4o", "anthropic/claude-sonnet-5-5"])
+    params = {d["model_name"]: d["litellm_params"] for d in router.get_model_list()}
+
+    assert params["m0"]["temperature"] == 0.0 and "temperature" not in params["m1"]

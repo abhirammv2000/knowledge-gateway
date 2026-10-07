@@ -237,6 +237,7 @@ def _add_usage(result: AgentResult, reply: LLMReply) -> None:
     result.input_tokens += reply.input_tokens
     result.output_tokens += reply.output_tokens
     result.cost_usd = round(result.cost_usd + reply.cost_usd, 6)
+    result.llm_seconds = round(result.llm_seconds + reply.seconds, 3)
     if reply.model and reply.model not in result.models_used:
         result.models_used.append(reply.model)
     result.fallback_used = result.fallback_used or reply.fallback_used

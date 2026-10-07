@@ -89,6 +89,7 @@ class AgentResult:
     output_tokens: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
+    llm_seconds: float = 0.0  # time spent waiting for the model, as the router measured it
     models_used: list[str] = field(default_factory=list)
     fallback_used: bool = False
     cached: bool = False
