@@ -110,7 +110,7 @@ Tracing is OpenTelemetry and off by default. `KG_TRACE_FILE=traces.jsonl` writes
 
 Timings from one run on this CPU-only machine, on a real CUAD contract of 66 chunks: the first search took 9.9 s (7.1 s building the index, which includes loading the embedding model, and 2.7 s in the reranker, which includes loading it), and later searches in the same contract took about 1 s with the reranker and 0.06 s without. The first redaction call takes about 4 s while spaCy loads. These are single runs, not a benchmark.
 
-How it was checked: 25 new tests (73 in all). Every tool is called through a real MCP client in-process, and one test starts the server as a subprocess over stdio with the real models, runs the three tools and reads the trace file. For OTLP I pointed the exporter at a small local OTLP/HTTP receiver and parsed what arrived: the right service name, nested spans and no query text. I did not run it against Jaeger or another real backend.
+How it was checked: 25 new tests (55 in all, run in CI). Every tool is called through a real MCP client in-process, and one test starts the server as a subprocess over stdio with the real models, runs the three tools and reads the trace file. For OTLP I pointed the exporter at a small local OTLP/HTTP receiver and parsed what arrived: the right service name, nested spans and no query text. I did not run it against Jaeger or another real backend.
 
 ```bash
 .venv/Scripts/python -m pip install mcp opentelemetry-sdk
