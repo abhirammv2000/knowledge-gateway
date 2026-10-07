@@ -82,8 +82,8 @@ The result isn't the simple "hybrid beats everything" story I expected:
 
 ```bash
 py -3.12 -m venv .venv
-.venv/Scripts/python -m pip install presidio-analyzer presidio-anonymizer pytest pytest-asyncio faker rank-bm25 numpy sentence-transformers mcp opentelemetry-sdk
 .venv/Scripts/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.venv/Scripts/python -m pip install -r requirements-dev.txt
 .venv/Scripts/python -m spacy download en_core_web_lg
 .venv/Scripts/python -m pytest
 ```
