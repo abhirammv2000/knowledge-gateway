@@ -40,7 +40,7 @@ class Settings:
 
     # one model call may take this long, and is retried this many times before falling back
     request_timeout_seconds: float = field(default_factory=lambda: _float("AGENT_REQUEST_TIMEOUT", 60.0))
-    num_retries: int = field(default_factory=lambda: _int("AGENT_NUM_RETRIES", 2))
+    num_retries: int = field(default_factory=lambda: _int("AGENT_NUM_RETRIES", 1))
     # a model that fails this many times in a row is skipped for the cooldown
     allowed_fails: int = field(default_factory=lambda: _int("AGENT_ALLOWED_FAILS", 3))
     cooldown_seconds: float = field(default_factory=lambda: _float("AGENT_COOLDOWN_SECONDS", 30.0))

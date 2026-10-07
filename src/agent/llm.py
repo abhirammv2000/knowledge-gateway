@@ -47,10 +47,12 @@ class LLM(Protocol):
 
 def _retry_policy() -> RetryPolicy:
     # Retry what can pass on a second try. A bad request or a bad key fails the same way again.
+    # One retry each: measured on real failures, every extra retry adds about 2 seconds of backoff before
+    # the fallback model is tried. With 2 to 3 retries the failover took 5 to 10 seconds, with one about 3.
     return RetryPolicy(
-        TimeoutErrorRetries=2,
-        RateLimitErrorRetries=3,
-        InternalServerErrorRetries=2,
+        TimeoutErrorRetries=1,
+        RateLimitErrorRetries=1,
+        InternalServerErrorRetries=1,
         BadRequestErrorRetries=0,
         AuthenticationErrorRetries=0,
         ContentPolicyViolationErrorRetries=0,
