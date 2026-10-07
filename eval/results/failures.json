@@ -1,0 +1,84 @@
+[
+ {
+  "scenario": "credit_exhausted",
+  "pass": true,
+  "stop_reason": "answered",
+  "found": true,
+  "verified": true,
+  "fallback_used": true,
+  "models": [
+   "gpt-4o-2024-08-06"
+  ],
+  "seconds": 14.7,
+  "cost_usd": 0.007831,
+  "note": "claude-sonnet-5-5 failed because the account had no credit, gpt-4o answered"
+ },
+ {
+  "scenario": "bad_key",
+  "pass": true,
+  "stop_reason": "answered",
+  "found": true,
+  "verified": true,
+  "fallback_used": true,
+  "models": [
+   "gpt-4o-mini-2024-07-18"
+  ],
+  "seconds": 3.1,
+  "cost_usd": 0.000337,
+  "note": "invalid key on the first model, the second answered"
+ },
+ {
+  "scenario": "timeout",
+  "pass": true,
+  "stop_reason": "answered",
+  "found": true,
+  "verified": true,
+  "fallback_used": true,
+  "models": [
+   "gpt-4o-mini-2024-07-18"
+  ],
+  "seconds": 13.0,
+  "cost_usd": 0.000337,
+  "note": "first model timed out after 50 ms, the second answered"
+ },
+ {
+  "scenario": "rate_limit",
+  "pass": true,
+  "stop_reason": "answered",
+  "found": true,
+  "verified": true,
+  "fallback_used": true,
+  "models": [
+   "gpt-4o-mini-2024-07-18"
+  ],
+  "seconds": 21.9,
+  "cost_usd": 0.000336,
+  "note": "first model always rate limited, the second answered"
+ },
+ {
+  "scenario": "all_down",
+  "pass": true,
+  "stop_reason": "error",
+  "found": false,
+  "verified": false,
+  "fallback_used": false,
+  "models": [],
+  "seconds": 0.4,
+  "cost_usd": 0.0,
+  "note": "no model works: a plain message and no error text or key in the answer"
+ },
+ {
+  "scenario": "flaky_tool",
+  "pass": true,
+  "stop_reason": "answered",
+  "found": true,
+  "verified": true,
+  "fallback_used": false,
+  "models": [
+   "gpt-4o-2024-08-06"
+  ],
+  "seconds": 4.4,
+  "cost_usd": 0.011281,
+  "note": "search failed once (1 failed call), then the model tried again and answered"
+ }
+]

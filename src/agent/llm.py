@@ -83,9 +83,12 @@ class RouterLLM:
     def __init__(self, settings: Settings, router: Router | None = None, models: list[str] | None = None,
                  with_fallbacks: bool = True) -> None:
         self.settings = settings
-        chain = models if models is not None else [settings.primary_model, *settings.fallback_models]
         self.router = router or build_router(settings, models, with_fallbacks)
-        self._first_model = chain[0].split("/", 1)[-1]
+        # The first model's deployment ids. A reply from any other deployment came from a fallback.
+        # Comparing model names would not work: "gpt-4o-mini" starts with "gpt-4o".
+        self._primary_ids = {
+            d.get("model_info", {}).get("id") for d in self.router.get_model_list(model_name="m0") or []
+        }
 
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: Any = None
@@ -123,9 +126,14 @@ class RouterLLM:
             output_tokens=getattr(usage, "completion_tokens", 0) or 0,
             cost_usd=_cost_of(response),
             seconds=round(seconds, 3),
-            fallback_used=bool(served) and not served.startswith(self._first_model),
+            fallback_used=self._served_by_fallback(response),
             message=assistant,
         )
+
+
+    def _served_by_fallback(self, response: Any) -> bool:
+        served_id = (getattr(response, "_hidden_params", None) or {}).get("model_id")
+        return bool(served_id) and bool(self._primary_ids) and served_id not in self._primary_ids
 
 
 def _cost_of(response: Any) -> float:
