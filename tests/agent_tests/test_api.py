@@ -241,3 +241,36 @@ def test_a_refusal_to_answer_is_still_a_200():
     response = ask(client, keys["user"])
 
     assert response.status_code == 200 and response.json()["stop_reason"] == "refused_unverified"
+
+
+def test_feedback_is_recorded_for_the_owner_only():
+    client, keys, service = make_client(*good_run())
+    session = ask(client, keys["user"]).json()["session_id"]
+
+    assert client.post("/v1/feedback", json={"session_id": session, "helpful": True},
+                       headers=auth(keys["other"])).status_code == 404
+    ok = client.post("/v1/feedback", json={"session_id": session, "helpful": False}, headers=auth(keys["user"]))
+
+    assert ok.status_code == 200 and service.memory.feedback_by_arm() == {"control": {"helpful": 0, "not_helpful": 1}}
+
+
+def test_feedback_needs_a_key_and_a_boolean():
+    client, keys, _ = make_client()
+
+    assert client.post("/v1/feedback", json={"session_id": "x", "helpful": True}).status_code == 401
+    assert client.post("/v1/feedback", json={"session_id": "x"}, headers=auth(keys["user"])).status_code == 422
+
+
+def test_the_ab_report_command_prints_each_arm(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DATA_DIR", str(tmp_path))
+    accounts = Accounts(tmp_path / "accounts.db")
+    _, key = accounts.create_key("k")
+    accounts.record(key, "answered", "m", 1, 1, 0.02, 3.0, False, 1, False, "challenger")
+    memory = Memory(tmp_path / "memory.db")
+    memory.add_feedback(memory.create_session(key.id, "general", "challenger"), key.id, True)
+    out = io.StringIO()
+
+    assert admin.main(["ab-report"], out) == 0
+
+    line = out.getvalue()
+    assert "challenger" in line and "1 requests" in line and "thumbs up 1 down 0" in line

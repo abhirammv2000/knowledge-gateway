@@ -440,3 +440,43 @@ async def test_with_hardening_off_a_canary_leak_is_not_blocked(svc):
 
 async def test_hardening_is_on_by_default(svc):
     assert Settings().harden is True
+
+
+async def test_a_repeated_call_is_not_run_again_and_the_model_is_told(svc, monkeypatch):
+    runs = []
+    original = svc.search_contract
+    monkeypatch.setattr(svc, "search_contract", lambda *a, **k: runs.append(a) or original(*a, **k))
+    llm = FakeLLM(
+        reply(search()),
+        reply(call("search_contract", {"query": "termination notice", "title": CONTRACT}, "call_b")),  # same call, other key order
+        reply(submit(found=False, answer="Nothing.")),
+    )
+
+    result = await ask(llm, svc)
+
+    assert len(runs) == 1
+    assert "already made this exact call" in last_tool_message(llm.calls[2])
+    assert result.repeated_calls == 1 and result.stop_reason == "answered"
+    assert [e.ok for e in result.tool_events] == [True, False]
+
+
+async def test_different_arguments_are_not_a_repeat(svc):
+    llm = FakeLLM(
+        reply(search()),
+        reply(call("search_contract", {"title": CONTRACT, "query": "governing law"}, "call_b")),
+        reply(submit(found=False, answer="Nothing.")),
+    )
+
+    result = await ask(llm, svc)
+
+    assert result.repeated_calls == 0 and all(e.ok for e in result.tool_events)
+
+
+async def test_a_model_stuck_repeating_is_limited_to_submitting_long_before_the_step_limit(svc):
+    llm = FakeLLM(reply(search()), reply(search()), reply(search()), reply(search()),
+                  reply(submit(found=False, answer="Giving up.")))
+
+    result = await ask(llm, svc, settings=settings(max_iterations=8, max_repeated_calls=2))
+
+    assert llm.calls[3]["tools"] == ["submit_answer"]
+    assert result.repeated_calls == 2 and result.iterations == 5

@@ -21,6 +21,19 @@ Paired on the same 100 questions, GPT-4o-mini minus GPT-4o is -12% [-21, -4]. Ch
 
 Not yet tried: telling the model to search again with different words before it says something is absent. That is the obvious fix for the misses above, and it needs a rerun to measure.
 
+## Would a cheap-first cascade save money?
+
+The obvious way to cut cost: run GPT-4o-mini first and call GPT-4o only when the answer looks unsure. `eval/routing_sim.py` replays this from the two saved runs, which used the same 100 questions at temperature 0. It assumes a rerun would give the same answers.
+
+| Setup | Accuracy | $/question | Questions sent to GPT-4o |
+|---|---|---|---|
+| GPT-4o-mini only | 65% | $0.0016 | 0% |
+| GPT-4o only | 77% | $0.0118 | 100% |
+| Mini first, GPT-4o unless mini found and verified a clause | 74% | $0.0106 | 74% |
+| Mini first, GPT-4o only on errors or unverified answers | 65% | $0.0016 | 0% |
+
+The cascade loses. Half the questions have no marked clause, so a correct "not found" looks the same as a wrong one, and 74% of questions get escalated. The result costs almost as much as GPT-4o and is less accurate. Mini's mistakes are not errors or failed citations, so the second rule never fires. The model's confidence does not separate them either, which is why I did not build a cascade. The router stays a plain fallback chain.
+
 ## Tool calls
 
 `eval/tool_eval.py` grades the tool trace with rules, not the answer text. Three kinds of question, 12 each:

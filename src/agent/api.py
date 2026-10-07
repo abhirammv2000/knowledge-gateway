@@ -3,6 +3,7 @@
     POST /v1/ask          ask a question about a contract (needs an API key)
     GET  /v1/contracts    find a contract's exact title
     GET  /v1/usage        what this key has spent today
+    POST /v1/feedback     thumbs up or down for a conversation
     DELETE /v1/sessions/{id}   forget one conversation
     DELETE /v1/data       forget everything stored for this key
     GET  /metrics         Prometheus metrics (admin key)
@@ -37,6 +38,11 @@ log = logging.getLogger("agent.api")
 STATIC = Path(__file__).parent / "static"
 
 
+class FeedbackRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    helpful: bool
+
+
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     contract: str | None = Field(default=None, max_length=300)
@@ -59,9 +65,12 @@ def build_service(settings: Settings | None = None) -> AgentService:
         make_embedder(kind), data / f"cache_{kind}.db",
         threshold=float(os.environ.get("AGENT_CACHE_THRESHOLD", DEFAULT_THRESHOLDS[kind])),
     )
+    challenger = None
+    if settings.ab_model and settings.ab_percent:
+        challenger = RouterLLM(settings, models=[settings.ab_model, *settings.fallback_models])
     return AgentService(
         settings, RouterLLM(settings), GatewayService(), Memory(data / "memory.db"), accounts, cache,
-        max_concurrent=int(os.environ.get("AGENT_MAX_CONCURRENT_RUNS", "4")),
+        max_concurrent=int(os.environ.get("AGENT_MAX_CONCURRENT_RUNS", "4")), challenger=challenger,
     )
 
 
@@ -141,6 +150,14 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
                 status_code=503, headers={"Retry-After": "10"},
             )
         return answer.to_dict()
+
+    @app.post("/v1/feedback")
+    async def feedback(body: FeedbackRequest, request: Request, key: ApiKey = Depends(authenticated)):
+        arm = svc(request).memory.add_feedback(body.session_id, key.id, body.helpful)
+        if arm is None:
+            raise HTTPException(404, "no such session")
+        metrics.FEEDBACK.labels(arm, str(body.helpful).lower()).inc()
+        return {"recorded": True}
 
     @app.get("/v1/usage")
     async def usage(request: Request, key: ApiKey = Depends(authenticated)) -> dict[str, Any]:

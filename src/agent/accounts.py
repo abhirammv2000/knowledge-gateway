@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT, api_key_id TEXT NOT NULL, ts REAL NOT NULL, status TEXT NOT NULL,
     model TEXT, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd REAL NOT NULL DEFAULT 0, seconds REAL NOT NULL DEFAULT 0, cached INTEGER NOT NULL DEFAULT 0,
-    tool_calls INTEGER NOT NULL DEFAULT 0, fallback INTEGER NOT NULL DEFAULT 0);
+    tool_calls INTEGER NOT NULL DEFAULT 0, fallback INTEGER NOT NULL DEFAULT 0, arm TEXT NOT NULL DEFAULT 'control');
 CREATE INDEX IF NOT EXISTS usage_by_key_time ON usage(api_key_id, ts);
 """
 
@@ -78,6 +78,8 @@ class Accounts:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(path), check_same_thread=False)
         self._db.executescript(_SCHEMA)
+        if "arm" not in {row[1] for row in self._db.execute("PRAGMA table_info(usage)")}:
+            self._db.execute("ALTER TABLE usage ADD COLUMN arm TEXT NOT NULL DEFAULT 'control'")  # a database from before A/B
         self._global_budget = global_daily_budget_usd
         self._clock = clock
         self._recent: dict[str, deque[float]] = defaultdict(deque)
@@ -140,14 +142,39 @@ class Accounts:
             self._recent[key.id].append(now)
 
     def record(self, key: ApiKey, status: str, model: str | None, input_tokens: int, output_tokens: int,
-               cost_usd: float, seconds: float, cached: bool, tool_calls: int, fallback: bool) -> None:
+               cost_usd: float, seconds: float, cached: bool, tool_calls: int, fallback: bool,
+               arm: str = "control") -> None:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO usage (api_key_id, ts, status, model, input_tokens, output_tokens, cost_usd, seconds,"
-                " cached, tool_calls, fallback) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                " cached, tool_calls, fallback, arm) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (key.id, self._clock(), status, model, input_tokens, output_tokens, cost_usd, seconds,
-                 int(cached), tool_calls, int(fallback)),
+                 int(cached), tool_calls, int(fallback), arm),
             )
+
+    def by_arm(self, since: float = 0.0) -> dict[str, dict]:
+        """What each arm of the A/B split did: counts, outcomes, cost and latency. Cache hits are left out,
+        because they never reached a model."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT arm, status, cost_usd, seconds, fallback FROM usage WHERE cached = 0 AND ts >= ?", (since,)
+            ).fetchall()
+        arms: dict[str, list[tuple]] = defaultdict(list)
+        for row in rows:
+            arms[row[0]].append(row[1:])
+        report = {}
+        for arm, items in arms.items():
+            n = len(items)
+            seconds = sorted(s for _, _, s, _ in items)
+            report[arm] = {
+                "requests": n,
+                "answered": sum(st == "answered" for st, *_ in items) / n,
+                "failed": sum(st in ("error", "timeout") for st, *_ in items) / n,
+                "cost_per_request_usd": round(sum(c for _, c, _, _ in items) / n, 6),
+                "median_seconds": seconds[n // 2],
+                "fallback_rate": sum(bool(f) for *_, f in items) / n,
+            }
+        return report
 
     def spend(self, key: ApiKey) -> Spend:
         since = _start_of_utc_day(self._clock())

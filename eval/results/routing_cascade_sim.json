@@ -1,0 +1,26 @@
+{
+ "cheap model only": {
+  "accuracy": 0.65,
+  "cost_per_question": 0.0015953900000000001,
+  "escalated": 0.0,
+  "median_seconds": 7.656
+ },
+ "strong model only": {
+  "accuracy": 0.77,
+  "cost_per_question": 0.01180037,
+  "escalated": 1.0,
+  "median_seconds": 4.031
+ },
+ "cascade: escalate unless found and verified": {
+  "accuracy": 0.74,
+  "cost_per_question": 0.010614789999999999,
+  "escalated": 0.74,
+  "median_seconds": 11.407
+ },
+ "cascade: escalate only on errors or unverified": {
+  "accuracy": 0.65,
+  "cost_per_question": 0.0015953900000000001,
+  "escalated": 0.0,
+  "median_seconds": 7.656
+ }
+}

@@ -109,7 +109,22 @@ class RunState:
     def __init__(self) -> None:
         self.passages: dict[str, Passage] = {}
         self.events: list[ToolEvent] = []
+        self.repeated_calls = 0
         self._ids: dict[tuple[str, int], str] = {}
+        self._calls_made: set[str] = set()
+
+    def is_repeat(self, name: str, raw_arguments: str) -> bool:
+        """True if this exact call was already made in this run. Arguments are compared as parsed JSON, so
+        spacing and key order do not hide a repeat. Unparseable arguments are never counted as a repeat."""
+        try:
+            key = name + json.dumps(json.loads(raw_arguments or "{}"), sort_keys=True)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        if key in self._calls_made:
+            self.repeated_calls += 1
+            return True
+        self._calls_made.add(key)
+        return False
 
     def passage_id(self, contract: str, chunk_index: int, text: str) -> str:
         key = (contract, chunk_index)

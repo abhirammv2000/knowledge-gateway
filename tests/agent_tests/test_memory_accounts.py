@@ -242,3 +242,82 @@ def test_the_database_can_be_reopened_from_a_file(tmp_path, clock):
 
     assert Accounts(path, clock=clock).authenticate(plain) is not None
     assert sqlite3.connect(path).execute("SELECT COUNT(*) FROM api_keys").fetchone()[0] == 1
+
+
+def test_feedback_is_kept_per_arm_and_one_vote_per_session_counts():
+    memory = Memory()
+    a = memory.create_session("key_1", "general", "control")
+    b = memory.create_session("key_1", "general", "challenger")
+
+    assert memory.add_feedback(a, "key_1", True) == "control"
+    assert memory.add_feedback(b, "key_1", True) == "challenger"
+    assert memory.add_feedback(b, "key_1", False) == "challenger"  # changed their mind
+
+    assert memory.feedback_by_arm() == {"control": {"helpful": 1, "not_helpful": 0},
+                                        "challenger": {"helpful": 0, "not_helpful": 1}}
+
+
+def test_feedback_on_someone_elses_or_a_missing_session_is_refused():
+    memory = Memory()
+    session = memory.create_session("key_1", "general")
+
+    assert memory.add_feedback(session, "key_2", True) is None
+    assert memory.add_feedback("ses_missing", "key_1", True) is None
+    assert memory.feedback_by_arm() == {}
+
+
+def test_deleting_a_session_removes_its_feedback():
+    memory = Memory()
+    session = memory.create_session("key_1", "general")
+    memory.add_feedback(session, "key_1", True)
+
+    memory.delete_session(session, "key_1")
+
+    assert memory.feedback_by_arm() == {}
+
+
+def test_an_older_database_without_the_arm_columns_is_upgraded(tmp_path):
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.executescript("CREATE TABLE sessions (id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, matter TEXT NOT NULL,"
+                     " created REAL NOT NULL); INSERT INTO sessions VALUES ('ses_old', 'key_1', 'general', 1.0);")
+    db.commit()
+    db.close()
+
+    memory = Memory(path)
+
+    assert memory.session_arm("ses_old") == "control"
+
+
+def test_an_older_usage_table_without_an_arm_column_is_upgraded(tmp_path):
+    path = tmp_path / "old_accounts.db"
+    db = sqlite3.connect(path)
+    db.executescript("CREATE TABLE usage (id INTEGER PRIMARY KEY AUTOINCREMENT, api_key_id TEXT NOT NULL, ts REAL NOT NULL,"
+                     " status TEXT NOT NULL, model TEXT, input_tokens INTEGER NOT NULL DEFAULT 0,"
+                     " output_tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0,"
+                     " seconds REAL NOT NULL DEFAULT 0, cached INTEGER NOT NULL DEFAULT 0,"
+                     " tool_calls INTEGER NOT NULL DEFAULT 0, fallback INTEGER NOT NULL DEFAULT 0);"
+                     " INSERT INTO usage (api_key_id, ts, status, cost_usd, seconds) VALUES ('k', 1.0, 'answered', 0.01, 2.0);")
+    db.commit()
+    db.close()
+
+    accounts = Accounts(path)
+
+    assert accounts.by_arm()["control"]["requests"] == 1
+
+
+def test_the_arm_report_counts_failures_fallbacks_and_cost():
+    accounts = Accounts()
+    _, key = accounts.create_key("k")
+    accounts.record(key, "answered", "m", 10, 10, 0.01, 2.0, False, 1, False, "challenger")
+    accounts.record(key, "error", None, 0, 0, 0.0, 9.0, False, 0, False, "challenger")
+    accounts.record(key, "answered", "m", 10, 10, 0.03, 4.0, False, 1, True, "challenger")
+    accounts.record(key, "cached", None, 0, 0, 0.0, 0.0, True, 0, False, "challenger")  # never reached a model
+
+    report = accounts.by_arm()["challenger"]
+
+    assert report["requests"] == 3
+    assert report["answered"] == pytest.approx(2 / 3) and report["failed"] == pytest.approx(1 / 3)
+    assert report["fallback_rate"] == pytest.approx(1 / 3)
+    assert report["cost_per_request_usd"] == pytest.approx(0.013333, abs=1e-5)
+    assert report["median_seconds"] == 4.0

@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from agent.config import Settings
 from agent.guard import Redactor, leaked_canary, quote_in_passage
 from agent.llm import LLM, LLMReply
-from agent.schema import AgentResult, Passage, SubmitAnswerArgs, VerifiedCitation
+from agent.schema import AgentResult, Passage, SubmitAnswerArgs, ToolEvent, VerifiedCitation
 from agent.tools import RunState, ToolExecutor, tool_specs
 from gateway.service import GatewayService
 from gateway.tracing import get_tracer
@@ -108,6 +108,7 @@ async def run_agent(
             result.stop_reason, result.answer = "error", UNAVAILABLE_TEXT
 
         result.tool_events = state.events
+        result.repeated_calls = state.repeated_calls
         result.passages = state.passages
         result.seconds = round(time.monotonic() - started, 3)
         span.set_attribute("agent.iterations", result.iterations)
@@ -138,7 +139,8 @@ async def _loop(question, llm, settings, contract, history, notes, state, redact
     nudged_final = False
 
     for step in range(settings.max_iterations):
-        final_phase = step >= settings.max_iterations - 2
+        # the last two steps, or a model that keeps repeating the same call: stop searching, answer
+        final_phase = step >= settings.max_iterations - 2 or state.repeated_calls >= settings.max_repeated_calls
         if final_phase and not nudged_final:
             messages.append({"role": "user", "content": FINAL_NUDGE})
             nudged_final = True
@@ -218,8 +220,20 @@ async def _handle_call(call, final_phase: bool, settings: Settings, state: RunSt
         return "Error: only submit_answer is available now. Call it with the best answer you have."
     if len(state.events) >= settings.max_tool_calls:
         return "Error: the tool call limit is reached. Call submit_answer now."
+    if state.is_repeat(call.name, call.arguments):
+        state.events.append(ToolEvent(call.name, _loose_args(call.arguments), False, "repeated call", 0.0))
+        return ("Error: you already made this exact call and its passages are earlier in this conversation. "
+                "Search with different words, or call submit_answer.")
     content, _ = await executor.execute(call.name, call.arguments)
     return content
+
+
+def _loose_args(raw: str) -> dict[str, Any]:
+    try:
+        data = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _parse_submit(raw: str) -> tuple[SubmitAnswerArgs | None, str]:

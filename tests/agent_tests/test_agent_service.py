@@ -218,3 +218,90 @@ async def test_a_model_outage_is_reported_and_costs_nothing(parts):
 
     assert answer.stop_reason == "error" and answer.usage["cost_usd"] == 0
     assert "all providers down" not in answer.answer
+
+
+# A/B test between two models
+
+class AlwaysFirst:
+    """A random source that always lands in the challenger's share."""
+    def random(self):
+        return 0.0
+
+
+class NeverFirst:
+    def random(self):
+        return 0.99
+
+
+def make_ab(parts, percent, rng):
+    gateway, accounts, key = parts
+    control, challenger = FakeLLM(*good_run(), *good_run()), FakeLLM(*good_run(), *good_run())
+    settings = Settings(ab_model="other/model", ab_percent=percent)
+    service = AgentService(settings, control, gateway, Memory(), accounts, None, challenger=challenger, rng=rng)
+    return service, control, challenger, key
+
+
+async def test_with_no_challenger_everything_goes_to_the_primary(parts):
+    gateway, accounts, key = parts
+    llm = FakeLLM(*good_run())
+    service = AgentService(Settings(ab_percent=100), llm, gateway, Memory(), accounts, None, rng=AlwaysFirst())
+
+    answer = await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    assert answer.usage["arm"] == "control" and len(llm.calls) == 2
+
+
+async def test_a_new_conversation_can_land_on_the_challenger(parts):
+    service, control, challenger, key = make_ab(parts, 50, AlwaysFirst())
+
+    answer = await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    assert answer.usage["arm"] == "challenger" and len(challenger.calls) == 2 and control.calls == []
+    assert service.accounts.by_arm()["challenger"]["requests"] == 1
+
+
+async def test_zero_percent_sends_nothing_to_the_challenger(parts):
+    service, control, challenger, key = make_ab(parts, 0, AlwaysFirst())
+
+    answer = await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    assert answer.usage["arm"] == "control" and challenger.calls == []
+
+
+async def test_a_conversation_stays_on_the_arm_it_started_with(parts):
+    service, control, challenger, key = make_ab(parts, 50, AlwaysFirst())
+    first = await service.ask(key, "How can this be terminated?", CONTRACT)
+    service._rng = NeverFirst()  # a new conversation would now go to the control
+
+    second = await service.ask(key, "And what about renewal?", CONTRACT, session_id=first.session_id)
+    third = await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    assert second.usage["arm"] == "challenger" and third.usage["arm"] == "control"
+
+
+async def test_the_two_arms_do_not_share_cached_answers(parts):
+    gateway, accounts, key = parts
+    control, challenger = FakeLLM(*good_run()), FakeLLM(*good_run())
+    cache = SemanticCache(words_vector, threshold=0.8)
+    service = AgentService(Settings(ab_model="other/model", ab_percent=50), control, gateway, Memory(), accounts,
+                           cache, challenger=challenger, rng=NeverFirst())
+    await service.ask(key, "How can this be terminated?", CONTRACT)  # control answers and fills the cache
+    service._rng = AlwaysFirst()
+
+    answer = await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    assert answer.usage["arm"] == "challenger" and answer.usage["cached"] is False
+    assert len(challenger.calls) == 2
+
+
+async def test_the_report_compares_arms_and_leaves_out_cache_hits(parts):
+    service, control, challenger, key = make_ab(parts, 50, AlwaysFirst())
+    await service.ask(key, "How can this be terminated?", CONTRACT)
+    service._rng = NeverFirst()
+    await service.ask(key, "How can this be terminated?", CONTRACT)
+
+    report = service.accounts.by_arm()
+
+    assert set(report) == {"control", "challenger"}
+    assert report["control"]["requests"] == 1 and report["control"]["answered"] == 1.0
+    assert report["challenger"]["cost_per_request_usd"] == pytest.approx(0.002)

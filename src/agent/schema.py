@@ -92,6 +92,7 @@ class AgentResult:
     llm_seconds: float = 0.0  # time spent waiting for the model, as the router measured it
     models_used: list[str] = field(default_factory=list)
     fallback_used: bool = False
+    repeated_calls: int = 0
     cached: bool = False
     # the question after redaction. This is the only form of it that may be stored.
     question_redacted: str = ""

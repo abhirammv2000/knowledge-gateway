@@ -38,6 +38,11 @@ class Settings:
         default_factory=lambda: _list("AGENT_FALLBACK_MODELS", "openai/gpt-4o,gemini/gemini-3.6-flash")
     )
 
+    # A/B test: this share of new conversations (0 to 100) is answered by the challenger model instead of
+    # the primary. A conversation stays on the model it started with.
+    ab_model: str = field(default_factory=lambda: os.environ.get("AGENT_AB_MODEL", ""))
+    ab_percent: int = field(default_factory=lambda: min(100, max(0, _int("AGENT_AB_PERCENT", 0))))
+
     # one model call may take this long, and is retried this many times before falling back
     request_timeout_seconds: float = field(default_factory=lambda: _float("AGENT_REQUEST_TIMEOUT", 60.0))
     num_retries: int = field(default_factory=lambda: _int("AGENT_NUM_RETRIES", 1))
@@ -51,6 +56,8 @@ class Settings:
     max_run_tokens: int = field(default_factory=lambda: _int("AGENT_MAX_RUN_TOKENS", 80_000))
     max_run_seconds: float = field(default_factory=lambda: _float("AGENT_MAX_RUN_SECONDS", 120.0))
     max_citation_repairs: int = field(default_factory=lambda: _int("AGENT_MAX_CITATION_REPAIRS", 2))
+    # identical tool calls tolerated in one run before the model may only submit an answer
+    max_repeated_calls: int = field(default_factory=lambda: _int("AGENT_MAX_REPEATED_CALLS", 2))
     max_question_chars: int = field(default_factory=lambda: _int("AGENT_MAX_QUESTION_CHARS", 2000))
 
     # Turn the defences against hostile contract text off. Only the prompt-injection eval does this,

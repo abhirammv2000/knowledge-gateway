@@ -12,4 +12,5 @@ LATENCY = Histogram(
 TOOL_CALLS = Counter("agent_tool_calls_total", "Tool calls the model made.", ["tool", "ok"])
 CACHE = Counter("agent_cache_total", "Semantic cache lookups.", ["result"])  # hit, miss, skipped
 FALLBACKS = Counter("agent_fallbacks_total", "Questions where a fallback model answered.")
+FEEDBACK = Counter("agent_feedback_total", "Thumbs up or down from users.", ["arm", "helpful"])
 ACTIVE = Gauge("agent_active_runs", "Questions being worked on right now.")

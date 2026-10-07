@@ -42,11 +42,12 @@ What the numbers do not say: the CUAD labels are one lawyer's judgement. The age
 
 What keeps it safe to run:
 
-- **Limits per question:** 8 steps, 12 tool calls, 80,000 tokens and 120 seconds.
+- **Limits per question:** 8 steps, 12 tool calls, 80,000 tokens and 120 seconds. A tool call the model repeats exactly is not run again, and after two repeats it may only submit an answer.
 - **Model failures:** the router retries once, then falls back to the next provider. If the first provider's account has no credit or the key is bad, the answer still comes from the fallback.
 - **Keys and spending:** API keys are stored as hashes. Each key has a per-minute rate limit and a daily dollar budget, and the whole service has a daily dollar cap.
 - **Observability:** OpenTelemetry spans (sizes and timings, never text), Prometheus metrics at `/metrics` for admin keys, and one log line per question with counts only.
 - **Cache:** a semantic cache with a guard, off for follow-up questions.
+- **A/B test:** `AGENT_AB_MODEL` and `AGENT_AB_PERCENT` send a share of new conversations to a second model. `python -m agent.admin ab-report` compares the two on cost, latency, failures and thumbs.
 
 ## Run it
 
@@ -67,6 +68,7 @@ Or `docker build -t contract-agent .` and run it with a volume on `/data`. Setti
 |---|---|
 | `POST /v1/ask` | ask a question (`contract`, `session_id` optional) |
 | `GET /v1/contracts?contains=` | find an exact title |
+| `POST /v1/feedback` | thumbs up or down for a conversation |
 | `GET /v1/usage` | what this key spent today |
 | `DELETE /v1/sessions/{id}`, `DELETE /v1/data` | forget a conversation, or everything stored for the key |
 | `GET /metrics` | Prometheus (admin key) |
@@ -80,6 +82,7 @@ The evals call real models and cost money, so they are scripts in `eval/`: `agen
 ## More
 
 - [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md): methods, results and what went wrong along the way
+- [docs/INTERVIEW.md](docs/INTERVIEW.md): the usual AI engineering questions, answered from this repo
 - [docs/GATEWAY.md](docs/GATEWAY.md): the retrieval layer, redaction and MCP server
 
 MIT licensed. The contracts are from [CUAD](https://www.atticusprojectai.org/cuad/) (CC BY 4.0).
