@@ -1,140 +1,85 @@
-# knowledge-gateway
+# Contract review agent
 
-A retrieval gateway for enterprise data: legal documents, relational tables and external APIs behind one query interface, with PII redaction before anything is indexed.
+Ask a question about a legal contract and get an answer that quotes it. Every quote is checked against the contract text, and personal data (names, emails, phone numbers) is removed before anything reaches a language model.
 
-**Status: early, but the retrieval core is built and measured.** PII redaction, legal-contract chunking, and hybrid retrieval with reranking are all built and evaluated on real data (see below), and are available to an agent over MCP with tracing. Query routing across documents/SQL/APIs, cost controls and A2A exposure are still planned, see [Planned](#planned).
+It is an LLM agent with tool calling, built on [Knowledge Gateway](docs/GATEWAY.md), a retrieval layer measured on 510 real contracts from the CUAD dataset. It is an API with API keys, rate limits and spending limits, plus a small demo page.
 
-## Built
+Example (the shape of a request and response):
 
-### PII redaction (`src/gateway/redaction.py`)
+```
+POST /v1/ask   {"question": "How much notice is needed to terminate?", "contract": "<exact title>"}
 
-Detection uses [Presidio](https://github.com/microsoft/presidio) (spaCy NER plus pattern recognizers). The module adds what Presidio does not do on its own:
+{ "found": true, "verified": true, "confidence": "high",
+  "answer": "Either party may terminate on 30 days' written notice...",
+  "citations": [{"source_id": "S1", "contract": "...", "quote": "Either party may terminate this Agreement upon 30 days", "passage": "..."}],
+  "usage": {"cost_usd": 0.012, "seconds": 4.1, "model": "gpt-4o", "tool_calls": 1, "fallback_used": false} }
+```
 
-- **Overlap resolution.** Presidio can return overlapping matches, for example URL fragments inside an email address. Replacing both corrupts the text, so the highest-scoring, then longest, span wins.
-- **Consistent, reversible tokens.** The same value always maps to the same token (`<PERSON_1>`), so retrieval can still tell two people apart. A `TokenVault` restores originals for an authorized caller and is never written to the index.
+## What was measured
 
-Two behaviors found by testing, not assumed:
+100 questions from CUAD, where lawyers marked which clauses match each of 41 categories. Half have a marked clause and half don't. Right means the agent cited a passage covering at least half of a marked span, or said nothing was found when nothing was marked. Temperature 0. Intervals are 95% bootstrap.
 
-- Presidio rejects structurally invalid SSNs (`123-45-6789` is not detected), so evaluation data must use valid-format numbers.
-- Presidio's built-in card recognizer left about a quarter of the (Luhn-valid) card numbers in the text. This repo adds a Luhn-checked 12-19 digit recognizer for them.
+| Model | Accuracy | Found the clause when it exists | Said "not found" when absent | Cost per question | Median time |
+|---|---|---|---|---|---|
+| GPT-4o | 77% [68, 85] | 60% | 94% | $0.0118 | 4.0 s |
+| GPT-4o-mini | 65% [56, 74] | 38% | 92% | $0.0016 | 7.5 s |
 
-**Measured** with `eval/redaction_eval.py` (300 synthetic contract-style documents, 1,454 labeled PII spans, fixed seed, exact gold labels), same data for both rows:
+GPT-4o-mini is 7 times cheaper and 12 points less accurate (paired difference -12% [-21, -4]). It is also slower, because it makes twice as many tool calls (2.6 against 1.2).
 
-| Configuration | Overall recall | Card recall | Card precision | False positives |
-|---|---|---|---|---|
-| Presidio default | 97.0% | 76.3% | 94.7% | 29 |
-| With Luhn card recognizer | 99.0% | 100% | 90.1% | 32 |
+- **Tool calls, graded from the trace.** 36 questions (exact title given, only a company name given, contract that does not exist), checked by rules and not by reading the answer. GPT-4o passes 35, with no failed calls and no made-up titles.
+- **Where the time goes.** For GPT-4o, 79% of a question is waiting on the model, 16% is retrieval and 5% is everything else. Building a contract's search index adds about 0.6 s.
+- **The semantic cache.** With the local MiniLM embeddings, questions that flip the meaning ("allow" and "prohibit", "30 days" and "90 days") are *more* similar to each other than true paraphrases are, so no threshold separates them. OpenAI's embeddings separate them better, and a guard that refuses a match when numbers, negations or parties differ stops the flips. Measured hit rate on paraphrases at the chosen threshold is 23%, with no false hits on 405 different-question pairs and 15 flipped pairs. The sets are small. Details in [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md).
 
-The tradeoff is real: the broader rule removes every card number in the test data but flags more non-card digit runs (about 1 in 10 random digit strings passes Luhn). Limits of this result:
+What the numbers do not say: the CUAD labels are one lawyer's judgement. The agent sometimes finds a related clause nobody marked, which counts as wrong here. 17 of GPT-4o's 20 misses were "said not found", mostly on header facts such as the document name and dates, usually after a single search.
 
-- It is synthetic, templated text. It does not predict accuracy on messy real documents.
-- 118 card numbers is a small sample for the card rows.
-- Phone recall is 100%, but phone precision is only about 93-94%: long non-PII digit runs (invoice and order numbers) are sometimes flagged as phone numbers, with or without the Luhn recognizer.
-- An earlier run of the evaluation scored phone recall at 86%; that was my generator using non-existent area codes, which Presidio correctly rejects. The generator now uses real ones, and phone recall is 100%.
+## How it works
 
-### Chunking for legal contracts (`src/gateway/chunking.py`)
+1. The question is redacted, so names and emails become tokens like `<PERSON_1>`.
+2. The model gets tools: `list_contracts`, `search_contract` and `save_note`, and ends by calling `submit_answer`. Search uses the Knowledge Gateway: BM25 and embeddings fused, then a cross-encoder reranker.
+3. Every passage is redacted before the model sees it, and wrapped as data. Text inside a contract is never treated as an instruction.
+4. `submit_answer` is checked. Each citation must name a passage the model was shown and quote it word for word. A wrong citation is sent back for repair. If it can't be fixed the agent refuses and does not answer.
+5. The result is remembered per conversation, and notes are kept per matter. Only redacted text is ever stored.
 
-Two chunkers over the same text: a 250-word sliding window with 50 words of overlap (baseline), and a structure-aware chunker that splits at clause headings (numbered clauses, ARTICLE/SECTION, ALL-CAPS headings), merges tiny sections, and splits oversized ones at paragraph, then sentence, then word boundaries, re-attaching the heading to later pieces. Heading patterns were chosen from the data: numbered headings appear in 447 of 510 contracts, ALL-CAPS in 310, ARTICLE/SECTION in 112.
+What keeps it safe to run:
 
-**Measured** with `eval/chunking_eval.py` on [CUAD](https://www.atticusprojectai.org/cuad/) (CC BY 4.0): 510 contracts, 6,702 questions with expert-marked clause spans, BM25 retrieval within each contract. A hit means the retrieved chunks cover at least 50% of a gold clause span.
+- **Limits per question:** 8 steps, 12 tool calls, 80,000 tokens and 120 seconds.
+- **Model failures:** the router retries once, then falls back to the next provider. If the first provider's account has no credit or the key is bad, the answer still comes from the fallback.
+- **Keys and spending:** API keys are stored as hashes. Each key has a per-minute rate limit and a daily dollar budget, and the whole service has a daily dollar cap.
+- **Observability:** OpenTelemetry spans (sizes and timings, never text), Prometheus metrics at `/metrics` for admin keys, and one log line per question with counts only.
+- **Cache:** a semantic cache with a guard, off for follow-up questions.
 
-| | Fixed window | Structure-aware |
-|---|---|---|
-| Hit@5 (equal top-k) | 69.8% | 66.9% |
-| Hit at a 1,250-word budget (equal context) | 69.8% | 70.5% |
-| Clauses left uncut by a chunk boundary | 94.1% | 97.7% |
-| Median chunk size | 250 words | 169 words |
-
-What this does and does not show:
-
-- **My hypothesis was that structure-aware chunking would improve retrieval. It did not.** At equal top-k it was 2.8 points worse (95% interval -3.6 to -2.1). That comparison was unfair, because its chunks are smaller, so top-5 returns less text.
-- At an **equal word budget** the difference is +0.7 points with a 95% interval of -0.04 to +1.44, a statistical tie. The budget comparison was added after I saw the top-k result; the 1,250-word primary budget was declared before running it.
-- What structure-aware chunking does buy is clause integrity: about 3.7 points fewer clauses cut across a chunk boundary. Whether that helps answer quality with an LLM is not measured here.
-- Retrieval is BM25 only. A dense or hybrid retriever may behave differently.
+## Run it
 
 ```bash
-# CUAD_v1.json (40 MB, CC BY 4.0) into data/raw/, which is gitignored
-curl -L -o data/raw/CUAD_v1.json "https://huggingface.co/datasets/theatticusproject/cuad/resolve/main/CUAD_v1/CUAD_v1.json"
-PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-dev.txt && python -m spacy download en_core_web_lg
+# put CUAD_v1.json (40 MB, CC BY 4.0) in data/raw/
+
+export OPENAI_API_KEY=...            # and ANTHROPIC_API_KEY, GEMINI_API_KEY for the fallbacks
+export AGENT_PRIMARY_MODEL=openai/gpt-4o AGENT_FALLBACK_MODELS=openai/gpt-4o-mini
+PYTHONPATH=src python -m agent.admin create-key --name me --budget 2 --rpm 20     # prints the key once
+PYTHONPATH=src uvicorn agent.api:app_factory --factory --port 8080                  # open http://localhost:8080
 ```
 
-### Hybrid retrieval and reranking (`src/gateway/retrieval.py`)
+Or `docker build -t contract-agent .` and run it with a volume on `/data`. Settings are environment variables, listed in `src/agent/config.py`. The default primary model is `anthropic/claude-sonnet-5-5`.
 
-Four retrieval methods over the same structure-aware chunks: BM25 alone, dense embeddings alone (`all-MiniLM-L6-v2`, open weights, CPU, no API key), reciprocal rank fusion of the two (RRF, k=60, the constant from the original 2009 paper, not tuned to this data), and that hybrid result reranked by a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) over its top 10 candidates.
+| Endpoint | |
+|---|---|
+| `POST /v1/ask` | ask a question (`contract`, `session_id` optional) |
+| `GET /v1/contracts?contains=` | find an exact title |
+| `GET /v1/usage` | what this key spent today |
+| `DELETE /v1/sessions/{id}`, `DELETE /v1/data` | forget a conversation, or everything stored for the key |
+| `GET /metrics` | Prometheus (admin key) |
 
-Structure-aware chunking, not fixed-window, is the base here: the chunking eval above found the two tie on retrieval at equal context while structure-aware cuts fewer clauses, so the tiebreaker picks it for anything built on top.
+## Tests and evals
 
-**Measured** with `eval/hybrid_retrieval_eval.py` on the same 510 CUAD contracts and 6,702 questions as the chunking eval:
+`python -m pytest -q` runs about 190 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
 
-| | Hit@1 | Hit@3 | Hit@5 |
-|---|---|---|---|
-| BM25 only | 39.0% | 58.5% | 66.9% |
-| Dense only | 35.2% | 52.7% | 61.7% |
-| Hybrid (RRF) | 41.8% | 59.7% | 67.4% |
-| Hybrid + rerank | 44.9% | 64.3% | 71.1% |
+The evals call real models and cost money, so they are scripts in `eval/`: `agent_eval.py` (accuracy), `tool_eval.py` (tool calls), `cache_eval.py` (cache), `latency_eval.py`, `injection_eval.py` and `failure_eval.py`. Each refuses to save a run where the provider failed, so a table of errors can't pass for a result.
 
-The result isn't the simple "hybrid beats everything" story I expected:
+## More
 
-- **Dense embeddings alone are worse than BM25 alone**, by 5.2 points at Hit@5 (95% interval -6.44 to -3.99, so not noise). A general-purpose embedding model not tuned for legal text loses to exact lexical matching on clause language, where the exact term used (e.g. "indemnification," "force majeure") carries most of the signal.
-- **Hybrid fusion barely moves the needle over BM25 alone**: +0.46 points at Hit@5, 95% interval -0.37 to 1.31, which includes zero. RRF can't get much out of combining a strong signal with a weaker one.
-- **Reranking is where the real, clear gain is**: +3.72 points over hybrid at Hit@5 (95% interval 2.87 to 4.56) and +3.09 at Hit@1 (95% interval 2.04 to 4.18). Both clearly exclude zero. The cross-encoder, which scores the query against each candidate's full text jointly rather than comparing fixed vectors, is doing real work that neither BM25 nor embedding similarity captures alone.
-- Rerank pool is 10, not larger: a timing test on this machine (CPU only, no GPU) measured about 16-18ms per query-chunk pair, and that held whether calls were batched or not, so it's compute-bound. At a pool of 15 the full 6,702-question run projected to about 2.2 hours; 10 was chosen to keep the run under two hours while still giving the reranker twice the candidates Hit@5 needs.
+- [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md): methods, results and what went wrong along the way
+- [docs/GATEWAY.md](docs/GATEWAY.md): the retrieval layer, redaction and MCP server
 
-```bash
-py -3.12 -m venv .venv
-.venv/Scripts/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-.venv/Scripts/python -m pip install -r requirements-dev.txt
-.venv/Scripts/python -m spacy download en_core_web_lg
-.venv/Scripts/python -m pytest
-```
-
-```bash
-# CUAD_v1.json (40 MB, CC BY 4.0) into data/raw/, which is gitignored
-curl -L -o data/raw/CUAD_v1.json "https://huggingface.co/datasets/theatticusproject/cuad/resolve/main/CUAD_v1/CUAD_v1.json"
-PYTHONPATH=src .venv/Scripts/python eval/chunking_eval.py
-PYTHONPATH=src .venv/Scripts/python eval/hybrid_retrieval_eval.py   # ~2 hours on CPU
-```
-
-### MCP server and tracing (`src/gateway/mcp_server.py`, `service.py`, `tracing.py`)
-
-The parts above are available to an agent over MCP as three read-only tools: `list_contracts` (find a contract by part of its title), `search_contract` (the best passages in one contract for a question) and `redact_text` (replace personal data with tokens). `search_contract` runs what the evaluations measured: structure-aware chunks, BM25 and dense search fused with RRF, then the cross-encoder over the top 10. A contract's index is built on first use and the last 8 are kept in memory.
-
-Things I learned or decided along the way:
-
-- It is written against the mcp 2.x SDK, where the server class is `MCPServer` (1.x called it `FastMCP`).
-- The SDK only passes the message of a `ToolError` on to the client. Any other exception reaches the agent as a bare "Error executing tool". My first version let a mistyped contract title do that, so the failures a caller can fix (unknown title, empty query, `top_k` out of range, missing data file) are now raised as tool errors that say what to do.
-- `redact_text` uses a fresh token vault for each call and throws it away, so nothing sent through the server can be turned back into the original value.
-- `search_contract` returns contract text, which can contain personal data. The server's instructions tell the agent to redact it before showing or storing it, but the server does not do that for it.
-
-Tracing is OpenTelemetry and off by default. `KG_TRACE_FILE=traces.jsonl` writes one JSON line per span, `KG_TRACE_CONSOLE=1` prints spans to stderr (stdout belongs to the protocol), and `OTEL_EXPORTER_OTLP_ENDPOINT` sends them to an OTLP/HTTP collector (`pip install opentelemetry-exporter-otlp-proto-http`). Each search is one span with a child for chunking, index build, BM25, dense search, fusion and rerank, so a slow query shows where the time went. Spans hold sizes and timings and never the text of a query or a contract. A test enforces that, and I confirmed it fails when the query is deliberately added to a span.
-
-Timings from one run on this CPU-only machine, on a real CUAD contract of 66 chunks: the first search took 9.9 s (7.1 s building the index, which includes loading the embedding model, and 2.7 s in the reranker, which includes loading it), and later searches in the same contract took about 1 s with the reranker and 0.06 s without. The first redaction call takes about 4 s while spaCy loads. These are single runs, not a benchmark.
-
-How it was checked: 25 new tests (55 in all, run in CI). Every tool is called through a real MCP client in-process, and one test starts the server as a subprocess over stdio with the real models, runs the three tools and reads the trace file. For OTLP I pointed the exporter at a small local OTLP/HTTP receiver and parsed what arrived: the right service name, nested spans and no query text. I did not run it against Jaeger or another real backend.
-
-```bash
-.venv/Scripts/python -m pip install mcp opentelemetry-sdk
-PYTHONPATH=src .venv/Scripts/python -m gateway.mcp_server
-```
-
-To use it from an MCP client that launches stdio servers, point it at that command, for example:
-
-```json
-{
-  "mcpServers": {
-    "knowledge-gateway": {
-      "command": "C:/path/to/knowledge-gateway/.venv/Scripts/python.exe",
-      "args": ["-m", "gateway.mcp_server"],
-      "env": { "PYTHONPATH": "C:/path/to/knowledge-gateway/src" }
-    }
-  }
-}
-```
-
-The stdio test launches it the same way, but I have not tried it in Claude Desktop or Claude Code themselves. It only searches the CUAD contracts, has no access control, and keeps one process-wide cache.
-
-## Planned
-
-- Query routing across documents, SQL and an external API, with a guarded read-only text-to-SQL path
-- Cost controls (semantic cache, model routing)
-- Exposure over A2A
+MIT licensed. The contracts are from [CUAD](https://www.atticusprojectai.org/cuad/) (CC BY 4.0).

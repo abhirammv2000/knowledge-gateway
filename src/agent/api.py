@@ -132,8 +132,14 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
         return await asyncio.to_thread(svc(request).gateway.list_contracts, contains, limit)
 
     @app.post("/v1/ask")
-    async def ask(body: AskRequest, request: Request, key: ApiKey = Depends(authenticated)) -> dict[str, Any]:
+    async def ask(body: AskRequest, request: Request, key: ApiKey = Depends(authenticated)):
         answer = await svc(request).ask(key, body.question, body.contract, body.session_id)
+        if answer.stop_reason in ("error", "timeout"):
+            # the model service is down. A 200 would look like a normal answer to a client that only checks the status.
+            return JSONResponse(
+                {"error": answer.answer, "stop_reason": answer.stop_reason, "session_id": answer.session_id},
+                status_code=503, headers={"Retry-After": "10"},
+            )
         return answer.to_dict()
 
     @app.get("/v1/usage")

@@ -44,6 +44,8 @@ async def main() -> None:
         started = time.monotonic()
         result = await run_agent(q["question"], llm=llm, service=service, settings=settings, contract=q["contract"])
         total = time.monotonic() - started
+        if result.stop_reason in ("error", "timeout"):
+            sys.exit("a provider failure, so the timings would mean nothing. Check the key and credit.")
         tools = sum(e.seconds for e in result.tool_events)
         rows.append({"total": total, "llm": result.llm_seconds, "tools": tools,
                      "other": max(0.0, total - result.llm_seconds - tools), "cold": index_cold,

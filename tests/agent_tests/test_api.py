@@ -221,3 +221,23 @@ def test_the_admin_command_creates_lists_and_revokes_keys(tmp_path, monkeypatch)
     assert admin.main(["revoke", key_id], io.StringIO()) == 0
     assert Accounts(tmp_path / "accounts.db").authenticate(plain) is None
     assert admin.main(["revoke", "key_missing"], io.StringIO()) == 1
+
+
+def test_a_model_outage_is_a_503_not_a_normal_answer():
+    client, keys, _ = make_client(RuntimeError("every provider is down"))
+
+    response = ask(client, keys["user"])
+
+    assert response.status_code == 503 and response.headers["retry-after"] == "10"
+    body = response.json()
+    assert body["stop_reason"] == "error" and "not available" in body["error"]
+    assert "every provider" not in response.text and "found" not in body
+
+
+def test_a_refusal_to_answer_is_still_a_200():
+    bad = lambda i: reply(submit(answer="x", citations=[{"source_id": "S1", "quote": "not in the text"}], call_id=f"s{i}"))
+    client, keys, _ = make_client(reply(call("search_contract", {"title": CONTRACT, "query": "x"}, "c1")), bad(1), bad(2), bad(3))
+
+    response = ask(client, keys["user"])
+
+    assert response.status_code == 200 and response.json()["stop_reason"] == "refused_unverified"

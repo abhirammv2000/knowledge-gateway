@@ -129,6 +129,9 @@ async def main() -> None:
         return grade(case, result, set(titles))
 
     rows = await asyncio.gather(*(one(c) for c in cases))
+    broken = [r for r in rows if r["stop_reason"] in ("error", "timeout")]
+    if broken:
+        sys.exit(f"{len(broken)} of {len(rows)} questions hit a provider failure, so nothing was saved. Check the key and credit.")
     RESULTS.mkdir(exist_ok=True)
     path = RESULTS / f"tools_{args.model.replace('/', '_')}.json"
     path.write_text(json.dumps(rows, indent=1), encoding="utf-8")
