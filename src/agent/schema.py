@@ -92,6 +92,8 @@ class AgentResult:
     models_used: list[str] = field(default_factory=list)
     fallback_used: bool = False
     cached: bool = False
+    # the question after redaction. This is the only form of it that may be stored.
+    question_redacted: str = ""
     # passages the model was shown, by id. Not part of the API response, used by the evals.
     passages: dict[str, Passage] = field(default_factory=dict)
 

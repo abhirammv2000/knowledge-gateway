@@ -119,6 +119,7 @@ async def run_agent(
 
 async def _loop(question, llm, settings, contract, history, notes, state, redact, executor, result, started):
     safe_question = await asyncio.to_thread(redact, question[: settings.max_question_chars])
+    result.question_redacted = safe_question
     messages: list[dict[str, Any]] = [{"role": "system", "content": build_system_prompt(settings, notes)}]
     for past_question, past_answer in history or []:
         messages.append({"role": "user", "content": past_question})
