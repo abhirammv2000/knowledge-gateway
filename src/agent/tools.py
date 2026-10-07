@@ -28,8 +28,11 @@ from gateway.service import ContractNotFound, GatewayService
 
 log = logging.getLogger("agent.tools")
 
-# The service builds indexes and keeps a cache that is not written for several threads at once.
-_service_lock = threading.Lock()
+# The service builds indexes and keeps a cache that is not written for several threads at once, and
+# the embedding model's tokenizer can fail if two threads use it together. Everything that touches
+# the models takes this lock, including the semantic cache in api.py.
+model_lock = threading.Lock()
+_service_lock = model_lock
 
 
 def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
