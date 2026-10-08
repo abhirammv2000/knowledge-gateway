@@ -5,6 +5,7 @@
     python -m agent.admin list
     python -m agent.admin revoke key_ab12cd34ef
     python -m agent.admin ab-report [--days 7]
+    python -m agent.admin drift-report [--days 7]
 
 The data directory is AGENT_DATA_DIR (default ./data/agent). A new key is printed once and
 cannot be shown again, because only its hash is stored.
@@ -18,6 +19,7 @@ import time
 from pathlib import Path
 
 from agent.accounts import Accounts
+from agent.drift import compare
 from agent.memory import Memory
 
 
@@ -43,6 +45,19 @@ def print_ab_report(accounts: Accounts, memory: Memory, days: float, out) -> Non
               f"fallback {a['fallback_rate']:.0%}  thumbs up {thumbs['helpful']} down {thumbs['not_helpful']}", file=out)
 
 
+def print_drift_report(accounts: Accounts, days: float, out) -> None:
+    now, window = time.time(), days * 86400
+    recent = accounts.rows_between(now - window, now + 1)
+    baseline = accounts.rows_between(now - 2 * window, now - window)
+    print(f"last {days:g} days: {len(recent)} requests, the {days:g} days before: {len(baseline)}", file=out)
+    if not recent or not baseline:
+        print("not enough history to compare", file=out)
+        return
+    for f in compare(baseline, recent):
+        mark = "CHANGED" if f.flagged else "       "
+        print(f"{mark} {f.metric:22} {f.baseline:10.4g} -> {f.recent:10.4g}  ({f.detail})", file=out)
+
+
 def main(argv: list[str] | None = None, out=None) -> int:
     out = out or sys.stdout
     parser = argparse.ArgumentParser(prog="agent.admin", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
@@ -57,6 +72,8 @@ def main(argv: list[str] | None = None, out=None) -> int:
     commands.add_parser("list", help="list keys and what they spent today")
     report = commands.add_parser("ab-report", help="compare the control and challenger models")
     report.add_argument("--days", type=float, default=7.0, help="how far back to look")
+    drift = commands.add_parser("drift-report", help="has behaviour changed compared with the days before")
+    drift.add_argument("--days", type=float, default=7.0, help="the recent window, compared with the same length before it")
     revoke = commands.add_parser("revoke", help="stop a key from working")
     revoke.add_argument("key_id")
 
@@ -76,6 +93,10 @@ def main(argv: list[str] | None = None, out=None) -> int:
             spent = accounts.spent_today(key_id)
             flags = ("admin " if is_admin else "") + ("" if active else "revoked")
             print(f"{key_id}  {name:20} ${spent:.4f} of ${budget:.2f} today  {rpm}/min  {flags}".rstrip(), file=out)
+        return 0
+
+    if args.command == "drift-report":
+        print_drift_report(accounts, args.days, out)
         return 0
 
     if args.command == "ab-report":

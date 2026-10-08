@@ -274,3 +274,133 @@ def test_the_ab_report_command_prints_each_arm(tmp_path, monkeypatch):
 
     line = out.getvalue()
     assert "challenger" in line and "1 requests" in line and "thumbs up 1 down 0" in line
+
+
+def test_notes_can_be_listed_approved_and_deleted_by_their_owner():
+    client, keys, service = make_client()
+    mine = service.memory.add_note(service.accounts.authenticate(keys["user"]).id, CONTRACT, "a finding", approved=False)
+
+    listed = client.get("/v1/notes", headers=auth(keys["user"])).json()["notes"]
+    assert listed == [{"id": mine, "matter": CONTRACT, "text": "a finding", "approved": False}]
+    assert client.get("/v1/notes", headers=auth(keys["other"])).json() == {"notes": []}
+
+    assert client.post(f"/v1/notes/{mine}/approve", headers=auth(keys["other"])).status_code == 404
+    assert client.post(f"/v1/notes/{mine}/approve", headers=auth(keys["user"])).status_code == 200
+    assert client.get("/v1/notes", headers=auth(keys["user"])).json()["notes"][0]["approved"] is True
+    assert client.delete(f"/v1/notes/{mine}", headers=auth(keys["other"])).status_code == 404
+    assert client.delete(f"/v1/notes/{mine}", headers=auth(keys["user"])).status_code == 200
+    assert client.delete(f"/v1/notes/{mine}", headers=auth(keys["user"])).status_code == 404
+
+
+def test_the_notes_routes_need_a_key():
+    client, _, _ = make_client()
+
+    assert client.get("/v1/notes").status_code == 401
+    assert client.post("/v1/notes/1/approve").status_code == 401
+    assert client.delete("/v1/notes/1").status_code == 401
+
+
+def test_an_answer_says_how_many_notes_the_model_proposed():
+    note = call("save_note", {"text": "worth remembering"}, "n1")
+    client, keys, _ = make_client(reply(note), reply(submit(found=False, answer="Noted.")))
+
+    assert ask(client, keys["user"]).json()["notes_proposed"] == 1
+
+
+# idempotency keys
+
+def keyed(client, key, idem, **body):
+    body.setdefault("question", "How can this be terminated?")
+    body.setdefault("contract", CONTRACT)
+    return client.post("/v1/ask", json=body, headers={**auth(key), "Idempotency-Key": idem})
+
+
+def test_a_retry_with_the_same_idempotency_key_gets_the_first_answer_without_a_second_run():
+    client, keys, service = make_client(*good_run())
+
+    first = keyed(client, keys["user"], "order-1")
+    second = keyed(client, keys["user"], "order-1")
+
+    assert first.status_code == second.status_code == 200
+    assert second.json() == first.json() and second.headers["idempotent-replay"] == "true"
+    assert "idempotent-replay" not in first.headers
+    assert len(service.llm.calls) == 2  # one run of two model steps, not two runs
+    assert service.accounts.spend(service.accounts.authenticate(keys["user"])).requests == 1
+
+
+def test_a_replay_does_not_use_up_the_rate_limit():
+    client, keys, _ = make_client(*good_run(), rpm=1)
+
+    assert keyed(client, keys["user"], "k1").status_code == 200
+    assert keyed(client, keys["user"], "k1").status_code == 200
+    assert keyed(client, keys["user"], "k2").status_code == 429
+
+
+def test_the_same_key_with_a_different_request_is_refused():
+    client, keys, service = make_client(*good_run())
+    keyed(client, keys["user"], "k1")
+
+    response = keyed(client, keys["user"], "k1", question="Something else entirely?")
+
+    assert response.status_code == 422 and "different request" in response.json()["detail"]
+    assert len(service.llm.calls) == 2
+
+
+def test_the_same_key_while_the_first_request_is_running_is_a_409():
+    client, keys, service = make_client(*good_run())
+    key_id = service.accounts.authenticate(keys["user"]).id
+    from agent.idempotency import fingerprint
+    service.idempotency.begin(key_id, "k1", fingerprint(question="How can this be terminated?", contract=CONTRACT, session_id=None))
+
+    assert keyed(client, keys["user"], "k1").status_code == 409
+    assert service.llm.calls == []
+
+
+def test_a_failed_request_is_not_stored_so_the_retry_runs():
+    client, keys, service = make_client(RuntimeError("provider down"), *good_run())
+
+    first = keyed(client, keys["user"], "k1")
+    second = keyed(client, keys["user"], "k1")
+
+    assert first.status_code == 503
+    assert second.status_code == 200 and "idempotent-replay" not in second.headers
+
+
+def test_two_users_can_use_the_same_idempotency_key():
+    client, keys, service = make_client(*good_run(), *good_run())
+
+    assert keyed(client, keys["user"], "same").status_code == 200
+    other = keyed(client, keys["other"], "same")
+
+    assert other.status_code == 200 and "idempotent-replay" not in other.headers
+
+
+@pytest.mark.parametrize("value", ["", "x" * 65])
+def test_a_bad_idempotency_key_is_a_422(value):
+    client, keys, service = make_client()
+
+    assert keyed(client, keys["user"], value).status_code == 422
+    assert service.llm.calls == []
+
+
+def test_deleting_my_data_also_forgets_stored_answers():
+    client, keys, service = make_client(*good_run(), *good_run())
+    keyed(client, keys["user"], "k1")
+
+    client.delete("/v1/data", headers=auth(keys["user"]))
+    again = keyed(client, keys["user"], "k1")
+
+    assert "idempotent-replay" not in again.headers
+
+
+def test_stored_answers_expire_after_a_day():
+    from agent.idempotency import IdempotencyStore, TTL_SECONDS
+    now = [1000.0]
+    store = IdempotencyStore(clock=lambda: now[0])
+    store.begin("k", "i", "fp")
+    store.finish("k", "i", "fp", 200, {"a": 1})
+    assert store.begin("k", "i", "fp").kind == "replay"
+
+    now[0] += TTL_SECONDS + 1
+
+    assert store.begin("k", "i", "fp").kind == "new"

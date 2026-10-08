@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT, api_key_id TEXT NOT NULL, ts REAL NOT NULL, status TEXT NOT NULL,
     model TEXT, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd REAL NOT NULL DEFAULT 0, seconds REAL NOT NULL DEFAULT 0, cached INTEGER NOT NULL DEFAULT 0,
-    tool_calls INTEGER NOT NULL DEFAULT 0, fallback INTEGER NOT NULL DEFAULT 0, arm TEXT NOT NULL DEFAULT 'control');
+    tool_calls INTEGER NOT NULL DEFAULT 0, fallback INTEGER NOT NULL DEFAULT 0, arm TEXT NOT NULL DEFAULT 'control', found INTEGER);
 CREATE INDEX IF NOT EXISTS usage_by_key_time ON usage(api_key_id, ts);
 """
 
@@ -80,6 +80,8 @@ class Accounts:
         self._db.executescript(_SCHEMA)
         if "arm" not in {row[1] for row in self._db.execute("PRAGMA table_info(usage)")}:
             self._db.execute("ALTER TABLE usage ADD COLUMN arm TEXT NOT NULL DEFAULT 'control'")  # a database from before A/B
+        if "found" not in {row[1] for row in self._db.execute("PRAGMA table_info(usage)")}:
+            self._db.execute("ALTER TABLE usage ADD COLUMN found INTEGER")  # a database from before drift checks
         self._global_budget = global_daily_budget_usd
         self._clock = clock
         self._recent: dict[str, deque[float]] = defaultdict(deque)
@@ -143,14 +145,24 @@ class Accounts:
 
     def record(self, key: ApiKey, status: str, model: str | None, input_tokens: int, output_tokens: int,
                cost_usd: float, seconds: float, cached: bool, tool_calls: int, fallback: bool,
-               arm: str = "control") -> None:
+               arm: str = "control", found: bool | None = None) -> None:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO usage (api_key_id, ts, status, model, input_tokens, output_tokens, cost_usd, seconds,"
-                " cached, tool_calls, fallback, arm) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                " cached, tool_calls, fallback, arm, found) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (key.id, self._clock(), status, model, input_tokens, output_tokens, cost_usd, seconds,
-                 int(cached), tool_calls, int(fallback), arm),
+                 int(cached), tool_calls, int(fallback), arm, None if found is None else int(found)),
             )
+
+    def rows_between(self, start: float, end: float) -> list[dict]:
+        """Requests that reached a model between two times, for drift checks."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT status, cost_usd, seconds, tool_calls, fallback, found FROM usage"
+                " WHERE cached = 0 AND ts >= ? AND ts < ?", (start, end)
+            ).fetchall()
+        return [{"status": r[0], "cost_usd": r[1], "seconds": r[2], "tool_calls": r[3], "fallback": r[4],
+                 "found": None if r[5] is None else bool(r[5])} for r in rows]
 
     def by_arm(self, since: float = 0.0) -> dict[str, dict]:
         """What each arm of the A/B split did: counts, outcomes, cost and latency. Cache hits are left out,

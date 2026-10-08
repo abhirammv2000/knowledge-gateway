@@ -14,6 +14,7 @@ from agent import metrics
 from agent.accounts import Accounts, ApiKey
 from agent.cache import SemanticCache
 from agent.config import Settings
+from agent.idempotency import IdempotencyStore
 from agent.llm import LLM
 from agent.loop import run_agent
 from agent.memory import Memory
@@ -47,6 +48,8 @@ class Answer:
     citations: list[dict[str, Any]]
     stop_reason: str
     usage: dict[str, Any] = field(default_factory=dict)
+    # notes the model proposed during this question, waiting for the user to approve them
+    notes_proposed: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -55,8 +58,10 @@ class Answer:
 class AgentService:
     def __init__(self, settings: Settings, llm: LLM, gateway: GatewayService, memory: Memory,
                  accounts: Accounts, cache: SemanticCache | None = None, max_concurrent: int = 4,
-                 challenger: LLM | None = None, rng: random.Random | None = None) -> None:
+                 challenger: LLM | None = None, rng: random.Random | None = None,
+                 idempotency: IdempotencyStore | None = None) -> None:
         self.settings = settings
+        self.idempotency = idempotency or IdempotencyStore()
         self.llm = llm
         self.challenger = challenger
         self._rng = rng or random.Random()
@@ -124,7 +129,7 @@ class AgentService:
         result = await run_agent(
             question, llm=llm, service=self.gateway, settings=self.settings, contract=contract, history=history,
             notes=self.memory.notes(key.id, matter) or None,
-            save_note=lambda text: self.memory.add_note(key.id, matter, text),
+            save_note=lambda text: self.memory.add_note(key.id, matter, text, approved=False),
         )
         self._record(key, result, arm)
         self.memory.add_turn(session_id, result.question_redacted or question, result.answer, result.found,
@@ -177,12 +182,14 @@ class AgentService:
                    "seconds": result.seconds, "model": result.models_used[-1] if result.models_used else None,
                    "tool_calls": result.tool_call_count, "fallback_used": result.fallback_used,
                    "iterations": result.iterations},
+            notes_proposed=sum(1 for e in result.tool_events if e.name == "save_note" and e.ok),
         )
 
     def _record(self, key: ApiKey, result: AgentResult, arm: str) -> None:
         model = result.models_used[-1] if result.models_used else "none"
         self.accounts.record(key, result.stop_reason, model, result.input_tokens, result.output_tokens,
-                             result.cost_usd, result.seconds, False, result.tool_call_count, result.fallback_used, arm)
+                             result.cost_usd, result.seconds, False, result.tool_call_count, result.fallback_used, arm,
+                             found=result.found if result.stop_reason == "answered" else None)
         metrics.REQUESTS.labels(result.stop_reason).inc()
         metrics.COST.labels(model).inc(result.cost_usd)
         metrics.TOKENS.labels("input").inc(result.input_tokens)

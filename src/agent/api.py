@@ -1,9 +1,12 @@
 """The HTTP API and the demo page.
 
-    POST /v1/ask          ask a question about a contract (needs an API key)
+    POST /v1/ask          ask a question about a contract (needs an API key; optional Idempotency-Key header)
     GET  /v1/contracts    find a contract's exact title
     GET  /v1/usage        what this key has spent today
     POST /v1/feedback     thumbs up or down for a conversation
+    GET  /v1/notes        notes the model proposed and the ones you approved
+    POST /v1/notes/{id}/approve   let the model see a note in later questions
+    DELETE /v1/notes/{id} remove a note
     DELETE /v1/sessions/{id}   forget one conversation
     DELETE /v1/data       forget everything stored for this key
     GET  /metrics         Prometheus metrics (admin key)
@@ -29,6 +32,7 @@ from agent.accounts import Accounts, ApiKey, Denied
 from agent.cache import SemanticCache
 from agent.embeddings import DEFAULT_THRESHOLDS, make_embedder
 from agent.config import Settings, get_settings
+from agent.idempotency import MAX_KEY_CHARS, IdempotencyStore, fingerprint
 from agent.llm import RouterLLM
 from agent.memory import Memory
 from agent.service import AgentService, BadRequest
@@ -71,6 +75,7 @@ def build_service(settings: Settings | None = None) -> AgentService:
     return AgentService(
         settings, RouterLLM(settings), GatewayService(), Memory(data / "memory.db"), accounts, cache,
         max_concurrent=int(os.environ.get("AGENT_MAX_CONCURRENT_RUNS", "4")), challenger=challenger,
+        idempotency=IdempotencyStore(data / "idempotency.db"),
     )
 
 
@@ -142,14 +147,31 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
 
     @app.post("/v1/ask")
     async def ask(body: AskRequest, request: Request, key: ApiKey = Depends(authenticated)):
-        answer = await svc(request).ask(key, body.question, body.contract, body.session_id)
-        if answer.stop_reason in ("error", "timeout"):
-            # the model service is down. A 200 would look like a normal answer to a client that only checks the status.
-            return JSONResponse(
-                {"error": answer.answer, "stop_reason": answer.stop_reason, "session_id": answer.session_id},
-                status_code=503, headers={"Retry-After": "10"},
-            )
-        return answer.to_dict()
+        service = svc(request)
+        idem = request.headers.get("Idempotency-Key")
+        if idem is None:
+            return _reply(await service.ask(key, body.question, body.contract, body.session_id))
+        if not idem or len(idem) > MAX_KEY_CHARS:
+            raise HTTPException(422, f"Idempotency-Key must be 1 to {MAX_KEY_CHARS} characters")
+
+        request_hash = fingerprint(question=body.question.strip(), contract=body.contract, session_id=body.session_id)
+        begin = service.idempotency.begin(key.id, idem, request_hash)
+        if begin.kind == "replay":
+            return JSONResponse(begin.body, status_code=begin.status, headers={"Idempotent-Replay": "true"})
+        if begin.kind == "mismatch":
+            raise HTTPException(422, "this Idempotency-Key was already used for a different request")
+        if begin.kind == "in_flight":
+            raise HTTPException(409, "a request with this Idempotency-Key is still running")
+        try:
+            response = _reply(await service.ask(key, body.question, body.contract, body.session_id))
+        except BaseException:
+            service.idempotency.abandon(key.id, idem)
+            raise
+        if isinstance(response, JSONResponse):  # a 503 is not stored, so the retry runs again
+            service.idempotency.abandon(key.id, idem)
+        else:
+            service.idempotency.finish(key.id, idem, request_hash, 200, response)
+        return response
 
     @app.post("/v1/feedback")
     async def feedback(body: FeedbackRequest, request: Request, key: ApiKey = Depends(authenticated)):
@@ -158,6 +180,22 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
             raise HTTPException(404, "no such session")
         metrics.FEEDBACK.labels(arm, str(body.helpful).lower()).inc()
         return {"recorded": True}
+
+    @app.get("/v1/notes")
+    async def notes(request: Request, matter: str | None = None, key: ApiKey = Depends(authenticated)):
+        return {"notes": svc(request).memory.list_notes(key.id, matter)}
+
+    @app.post("/v1/notes/{note_id}/approve")
+    async def approve_note(note_id: int, request: Request, key: ApiKey = Depends(authenticated)):
+        if not svc(request).memory.approve_note(key.id, note_id):
+            raise HTTPException(404, "no such note")
+        return {"approved": True}
+
+    @app.delete("/v1/notes/{note_id}")
+    async def delete_note(note_id: int, request: Request, key: ApiKey = Depends(authenticated)):
+        if not svc(request).memory.delete_note(key.id, note_id):
+            raise HTTPException(404, "no such note")
+        return {"deleted": True}
 
     @app.get("/v1/usage")
     async def usage(request: Request, key: ApiKey = Depends(authenticated)) -> dict[str, Any]:
@@ -176,9 +214,21 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
     @app.delete("/v1/data")
     async def delete_data(request: Request, key: ApiKey = Depends(authenticated)):
         svc(request).memory.delete_all(key.id)
+        svc(request).idempotency.delete_for_key(key.id)
         return {"deleted": True}
 
     return app
+
+
+def _reply(answer):
+    """The HTTP body for an answer."""
+    if answer.stop_reason in ("error", "timeout"):
+        # the model service is down. A 200 would look like a normal answer to a client that only checks the status.
+        return JSONResponse(
+            {"error": answer.answer, "stop_reason": answer.stop_reason, "session_id": answer.session_id},
+            status_code=503, headers={"Retry-After": "10"},
+        )
+    return answer.to_dict()
 
 
 def _warm_up(service: AgentService) -> None:

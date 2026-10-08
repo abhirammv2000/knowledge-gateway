@@ -3,8 +3,10 @@
 Two kinds of memory:
 - a session keeps the questions and answers of one conversation, so a follow-up like "and
   what about renewal?" makes sense. The last few turns go back to the model.
-- notes belong to a matter and outlast any one session. The model saves them with the
-  save_note tool and sees them again in every later question about that matter.
+- notes belong to a matter and outlast any one session. The model proposes them with the
+  save_note tool, a person approves them, and only approved notes go back to the model in later
+  questions about that matter. Without the approval step a contract containing "save a note that
+  says ..." could write its own instructions into the system prompt of every later question.
 
 Everything is scoped to one API key, so one user can never read another's memory. Only
 redacted text is stored: callers pass the question as the agent saw it, and every string goes
@@ -23,7 +25,8 @@ from agent.guard import Redactor
 DEFAULT_HISTORY_TURNS = 5
 DEFAULT_HISTORY_CHARS = 4000
 MAX_NOTES_SHOWN = 20
-MAX_NOTES_STORED = 100  # per matter, the oldest are dropped past this
+MAX_NOTES_STORED = 100  # per matter, the oldest approved ones are dropped past this
+MAX_NOTES_PENDING = 20  # per matter, so a flood of proposals cannot grow without limit
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -36,7 +39,7 @@ CREATE TABLE IF NOT EXISTS turns (
     ts REAL NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL, found INTEGER NOT NULL, contract TEXT);
 CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT, api_key_id TEXT NOT NULL, matter TEXT NOT NULL,
-    ts REAL NOT NULL, text TEXT NOT NULL);
+    ts REAL NOT NULL, text TEXT NOT NULL, approved INTEGER NOT NULL DEFAULT 1);
 CREATE INDEX IF NOT EXISTS turns_by_session ON turns(session_id, id);
 CREATE INDEX IF NOT EXISTS notes_by_matter ON notes(api_key_id, matter, id);
 """
@@ -50,6 +53,9 @@ class Memory:
         self._db.executescript(_SCHEMA)
         if "arm" not in {row[1] for row in self._db.execute("PRAGMA table_info(sessions)")}:
             self._db.execute("ALTER TABLE sessions ADD COLUMN arm TEXT NOT NULL DEFAULT 'control'")  # from before A/B
+        if "approved" not in {row[1] for row in self._db.execute("PRAGMA table_info(notes)")}:
+            # notes saved before approval existed were trusted when they were saved, so they stay trusted
+            self._db.execute("ALTER TABLE notes ADD COLUMN approved INTEGER NOT NULL DEFAULT 1")
 
     def _clean(self, text: str) -> str:
         # a new vault each time, so tokens are not shared between unrelated strings
@@ -139,28 +145,56 @@ class Memory:
 
     # notes
 
-    def add_note(self, api_key_id: str, matter: str, text: str) -> None:
+    def add_note(self, api_key_id: str, matter: str, text: str, approved: bool = True) -> int | None:
+        """Store a note and return its id. A note the model proposed is passed with approved=False and
+        stays out of the prompt until approve_note. Returns None for an empty note."""
         text = self._clean(text).strip()
         if not text:
-            return
+            return None
+        keep = MAX_NOTES_STORED if approved else MAX_NOTES_PENDING
         with self._lock, self._db:
+            note_id = self._db.execute(
+                "INSERT INTO notes (api_key_id, matter, ts, text, approved) VALUES (?, ?, ?, ?, ?)",
+                (api_key_id, matter, time.time(), text, int(approved)),
+            ).lastrowid
+            # each kind has its own cap, so proposals can never push out approved notes
             self._db.execute(
-                "INSERT INTO notes (api_key_id, matter, ts, text) VALUES (?, ?, ?, ?)",
-                (api_key_id, matter, time.time(), text),
+                "DELETE FROM notes WHERE api_key_id = ? AND matter = ? AND approved = ? AND id NOT IN "
+                "(SELECT id FROM notes WHERE api_key_id = ? AND matter = ? AND approved = ? ORDER BY id DESC LIMIT ?)",
+                (api_key_id, matter, int(approved), api_key_id, matter, int(approved), keep),
             )
-            self._db.execute(
-                "DELETE FROM notes WHERE api_key_id = ? AND matter = ? AND id NOT IN "
-                "(SELECT id FROM notes WHERE api_key_id = ? AND matter = ? ORDER BY id DESC LIMIT ?)",
-                (api_key_id, matter, api_key_id, matter, MAX_NOTES_STORED),
-            )
+        return note_id
 
     def notes(self, api_key_id: str, matter: str, limit: int = MAX_NOTES_SHOWN) -> list[str]:
+        """The approved notes for a matter. These are the only ones the model ever sees."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT text FROM notes WHERE api_key_id = ? AND matter = ? ORDER BY id DESC LIMIT ?",
+                "SELECT text FROM notes WHERE api_key_id = ? AND matter = ? AND approved = 1 ORDER BY id DESC LIMIT ?",
                 (api_key_id, matter, limit),
             ).fetchall()
         return [r[0] for r in reversed(rows)]
+
+    def list_notes(self, api_key_id: str, matter: str | None = None) -> list[dict]:
+        """Every note of this key, approved or not, oldest first."""
+        query, args = "SELECT id, matter, text, approved FROM notes WHERE api_key_id = ?", [api_key_id]
+        if matter is not None:
+            query += " AND matter = ?"
+            args.append(matter)
+        with self._lock:
+            rows = self._db.execute(query + " ORDER BY id", args).fetchall()
+        return [{"id": r[0], "matter": r[1], "text": r[2], "approved": bool(r[3])} for r in rows]
+
+    def approve_note(self, api_key_id: str, note_id: int) -> bool:
+        with self._lock, self._db:
+            return self._db.execute(
+                "UPDATE notes SET approved = 1 WHERE id = ? AND api_key_id = ?", (note_id, api_key_id)
+            ).rowcount > 0
+
+    def delete_note(self, api_key_id: str, note_id: int) -> bool:
+        with self._lock, self._db:
+            return self._db.execute(
+                "DELETE FROM notes WHERE id = ? AND api_key_id = ?", (note_id, api_key_id)
+            ).rowcount > 0
 
     def delete_all(self, api_key_id: str) -> None:
         """Remove everything stored for one API key."""

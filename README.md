@@ -38,7 +38,7 @@ What the numbers do not say: the CUAD labels are one lawyer's judgement. The age
 2. The model gets tools: `list_contracts`, `search_contract` and `save_note`, and ends by calling `submit_answer`. Search uses the Knowledge Gateway: BM25 and embeddings fused, then a cross-encoder reranker.
 3. Every passage is redacted before the model sees it, and wrapped as data. Text inside a contract is never treated as an instruction.
 4. `submit_answer` is checked. Each citation must name a passage the model was shown and quote it word for word. A wrong citation is sent back for repair. If it can't be fixed the agent refuses and does not answer.
-5. The result is remembered per conversation, and notes are kept per matter. Only redacted text is ever stored.
+5. The result is remembered per conversation. The model can propose notes about a matter, but a note only reaches later prompts after the user approves it, so text planted in a contract cannot write itself into the system prompt. Only redacted text is ever stored.
 
 What keeps it safe to run:
 
@@ -47,6 +47,8 @@ What keeps it safe to run:
 - **Keys and spending:** API keys are stored as hashes. Each key has a per-minute rate limit and a daily dollar budget, and the whole service has a daily dollar cap.
 - **Observability:** OpenTelemetry spans (sizes and timings, never text), Prometheus metrics at `/metrics` for admin keys, and one log line per question with counts only.
 - **Cache:** a semantic cache with a guard, off for follow-up questions.
+- **Retries:** send an `Idempotency-Key` header and a repeated request gets the first answer back instead of a second run and a second charge.
+- **Drift:** `python -m agent.admin drift-report` compares the last days with the days before (answer rate, found rate, failures, fallbacks, time, cost) and flags real shifts.
 - **A/B test:** `AGENT_AB_MODEL` and `AGENT_AB_PERCENT` send a share of new conversations to a second model. `python -m agent.admin ab-report` compares the two on cost, latency, failures and thumbs.
 
 ## Run it
@@ -69,19 +71,21 @@ Or `docker build -t contract-agent .` and run it with a volume on `/data`. Setti
 | `POST /v1/ask` | ask a question (`contract`, `session_id` optional) |
 | `GET /v1/contracts?contains=` | find an exact title |
 | `POST /v1/feedback` | thumbs up or down for a conversation |
+| `GET /v1/notes`, `POST /v1/notes/{id}/approve`, `DELETE /v1/notes/{id}` | review the notes the model proposed |
 | `GET /v1/usage` | what this key spent today |
 | `DELETE /v1/sessions/{id}`, `DELETE /v1/data` | forget a conversation, or everything stored for the key |
 | `GET /metrics` | Prometheus (admin key) |
 
 ## Tests and evals
 
-`python -m pytest -q` runs about 190 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
+`python -m pytest -q` runs about 240 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
 
 The evals call real models and cost money, so they are scripts in `eval/`: `agent_eval.py` (accuracy), `tool_eval.py` (tool calls), `cache_eval.py` (cache), `latency_eval.py`, `injection_eval.py` and `failure_eval.py`. Each refuses to save a run where the provider failed, so a table of errors can't pass for a result.
 
 ## More
 
 - [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md): methods, results and what went wrong along the way
+- [docs/CONCEPTS.md](docs/CONCEPTS.md): which AI engineering topics are built, measured or not done, and where
 - [docs/INTERVIEW.md](docs/INTERVIEW.md): the usual AI engineering questions, answered from this repo
 - [docs/GATEWAY.md](docs/GATEWAY.md): the retrieval layer, redaction and MCP server
 
