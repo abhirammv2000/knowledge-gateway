@@ -84,3 +84,22 @@ async def test_the_built_router_carries_the_temperature():
     params = {d["model_name"]: d["litellm_params"] for d in router.get_model_list()}
 
     assert params["m0"]["temperature"] == 0.0 and "temperature" not in params["m1"]
+
+
+def test_a_local_ollama_model_gets_the_server_address_and_a_bigger_context():
+    from agent.llm import deployment_params
+
+    settings = Settings(temperature=0.0, ollama_num_ctx=8192, ollama_api_base="http://localhost:11434")
+
+    assert deployment_params(settings, "ollama_chat/qwen2.5-coder:7b") == {
+        "model": "ollama_chat/qwen2.5-coder:7b", "temperature": 0.0,
+        "api_base": "http://localhost:11434", "num_ctx": 8192}
+    assert deployment_params(settings, "ollama/llama3.2:3b")["num_ctx"] == 8192
+
+
+def test_hosted_models_get_no_ollama_settings():
+    from agent.llm import deployment_params
+
+    for model in ("openai/gpt-4o", "gemini/gemini-3.6-flash", "anthropic/claude-sonnet-5-5"):
+        params = deployment_params(Settings(), model)
+        assert "api_base" not in params and "num_ctx" not in params

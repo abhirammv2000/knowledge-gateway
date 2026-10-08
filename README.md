@@ -64,6 +64,8 @@ PYTHONPATH=src python -m agent.admin create-key --name me --budget 2 --rpm 20   
 PYTHONPATH=src uvicorn agent.api:app_factory --factory --port 8080                  # open http://localhost:8080
 ```
 
+For a local open-weight model with no API key, start Ollama and set `AGENT_PRIMARY_MODEL=ollama_chat/qwen2.5-coder:7b` and `AGENT_FALLBACK_MODELS=` (empty), with `AGENT_REQUEST_TIMEOUT=900`. The contracts never leave your machine. It works, but slowly: one question took 12 minutes on a CPU, and the 7B model set `found=false` while quoting the clause in its answer, so I have no accuracy row for it. Hosted models are the realistic choice.
+
 Or `docker build -t contract-agent .` and run it with a volume on `/data`. Settings are environment variables, listed in `src/agent/config.py`. The default primary model is `anthropic/claude-sonnet-5-5`.
 
 | Endpoint | |

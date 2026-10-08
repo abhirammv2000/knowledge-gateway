@@ -91,6 +91,10 @@ These shaped the design, so they are written down.
 - **The first prompt-injection eval was badly designed.** Its control row was inflated by how I picked the questions, and the temperature was left at OpenAI's default of 1. I redesigned it, and I am not reporting numbers from the first version.
 - **Newer Claude models reject the temperature parameter.** It is set to 0 for the other providers and omitted for Anthropic.
 
+## A local open-weight model
+
+`qwen2.5-coder:7b` through Ollama runs the whole loop (tools, redaction, citation check), at no cost per token and with the contracts staying on the machine. I ran two live questions on a CPU. The first took 726 s for 4 steps and 8,288 tokens, and it answered with the termination clause, correctly cited and verified, but set `found=false`. The second was stopped to free the machine. That is one sample, so it says the agent runs on a local model and says nothing about accuracy. A full 100 questions would take about a day on this hardware, so the open-weight row is not in the table.
+
 ## Not done yet
 
 - Prompt-injection results with the redesigned eval (`eval/injection_eval.py`)

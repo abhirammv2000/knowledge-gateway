@@ -43,6 +43,11 @@ class Settings:
     ab_model: str = field(default_factory=lambda: os.environ.get("AGENT_AB_MODEL", ""))
     ab_percent: int = field(default_factory=lambda: min(100, max(0, _int("AGENT_AB_PERCENT", 0))))
 
+    # Local open-weight models through Ollama (model names like ollama_chat/qwen2.5-coder:7b). Ollama's own default
+    # context is 2048 tokens, which cuts off a contract passage and the tool results, so ask for more.
+    ollama_num_ctx: int = field(default_factory=lambda: _int("AGENT_OLLAMA_NUM_CTX", 8192))
+    ollama_api_base: str = field(default_factory=lambda: os.environ.get("OLLAMA_API_BASE", "http://localhost:11434"))
+
     # one model call may take this long, and is retried this many times before falling back
     request_timeout_seconds: float = field(default_factory=lambda: _float("AGENT_REQUEST_TIMEOUT", 60.0))
     num_retries: int = field(default_factory=lambda: _int("AGENT_NUM_RETRIES", 1))

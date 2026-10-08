@@ -64,6 +64,10 @@ def deployment_params(settings: Settings, model: str) -> dict[str, Any]:
     params: dict[str, Any] = {"model": model}
     if not model.startswith("anthropic/"):
         params["temperature"] = settings.temperature
+    if model.startswith(("ollama/", "ollama_chat/")):
+        # ollama_chat/ is the endpoint that supports tool calls. A local model costs nothing per token.
+        params["api_base"] = settings.ollama_api_base
+        params["num_ctx"] = settings.ollama_num_ctx
     return params
 
 
