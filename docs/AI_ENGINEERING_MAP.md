@@ -80,6 +80,7 @@ Test counts at the time of writing: contract agent about 270, DevFlow 149, Citer
 | Domain checks | Blitz `evals/grounding.py`. Self-healing platform 33-case eval. | Two narrow grounding checks instead of one blurry score. The platform scored 90.9% classification and 84.8% action accuracy, and the eval found a real weakness (it over-picks `schema_evolution`). |
 | Experiments and A/B | Blitz `experiments.py`. Contract agent (sticky arms, `ab-report`). | Blitz assigns variants by hashing, with a Wilson interval and a two-proportion test. The contract agent has no live traffic yet. |
 | Regression gate | Citera CI (retrieval gate on a small demo index). | Runs on every push with no API key. |
+| Slice analysis | Contract agent `eval/slice_report.py`. | Accuracy by clause group, clause marked or not, contract length and type, flagging only slices clearly below the rest. Both models miss existing clauses far more than they invent them. |
 | Cascade routing | Contract agent `eval/routing_sim.py`. Citera `router.py`. | Mini-first with escalation cost almost as much as GPT-4o and scored lower, because a right "not found" looks the same as a wrong one. Both projects ended with a plain fallback chain. |
 
 ## Safety and security
@@ -129,7 +130,7 @@ I have not built these. The short answers are real, the projects are not.
 - **Preference tuning (DPO, RLHF).** Not done. The Citera README says so.
 - **Training a model from scratch, GPU programming.** Not done.
 - **A public deployment with real users.** Not done, and the collect-failures-and-improve loop depends on it.
-- **Bias auditing.** Not done.
+- **Demographic fairness auditing.** Not possible with CUAD, which has no attributes about the people involved. What exists is performance slicing (`eval/slice_report.py`).
 
 ## Questions I can answer from the code
 

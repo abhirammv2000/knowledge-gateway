@@ -1,0 +1,232 @@
+[
+ {
+  "dimension": "clause group",
+  "slice": "clause terms",
+  "n": 78,
+  "accuracy": 0.8333333333333334,
+  "low": 0.7354422072155546,
+  "high": 0.8999314902683655,
+  "rest_accuracy": 0.5454545454545454,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "clause group",
+  "slice": "header facts",
+  "n": 22,
+  "accuracy": 0.5454545454545454,
+  "low": 0.34659473289041554,
+  "high": 0.7307998556799515,
+  "rest_accuracy": 0.8333333333333334,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "clause present",
+  "slice": "clause marked",
+  "n": 50,
+  "accuracy": 0.6,
+  "low": 0.4618118910275937,
+  "high": 0.7239181021375425,
+  "rest_accuracy": 0.94,
+  "clearly_worse": true
+ },
+ {
+  "dimension": "clause present",
+  "slice": "no clause marked",
+  "n": 50,
+  "accuracy": 0.94,
+  "low": 0.8378265662912299,
+  "high": 0.9793854036353695,
+  "rest_accuracy": 0.6,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract length",
+  "slice": "long",
+  "n": 30,
+  "accuracy": 0.7,
+  "low": 0.5212387898833981,
+  "high": 0.8333543735604105,
+  "rest_accuracy": 0.8,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract length",
+  "slice": "medium",
+  "n": 35,
+  "accuracy": 0.8,
+  "low": 0.6410806339053748,
+  "high": 0.899576805540992,
+  "rest_accuracy": 0.7538461538461538,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract length",
+  "slice": "short",
+  "n": 35,
+  "accuracy": 0.8,
+  "low": 0.6410806339053748,
+  "high": 0.899576805540992,
+  "rest_accuracy": 0.7538461538461538,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "affiliate agreement",
+  "n": 10,
+  "accuracy": 0.7,
+  "low": 0.39677321997956516,
+  "high": 0.892210712513788,
+  "rest_accuracy": 0.7777777777777778,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "co-branding agreement",
+  "n": 10,
+  "accuracy": 0.9,
+  "low": 0.5958436145024278,
+  "high": 0.9821242504842788,
+  "rest_accuracy": 0.7555555555555555,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "cooperation agreement",
+  "n": 5,
+  "accuracy": 0.8,
+  "low": 0.3755282641185388,
+  "high": 0.9637768390302125,
+  "rest_accuracy": 0.7684210526315789,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "development agreement - first amendment",
+  "n": 5,
+  "accuracy": 0.8,
+  "low": 0.3755282641185388,
+  "high": 0.9637768390302125,
+  "rest_accuracy": 0.7684210526315789,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "distributor agreement",
+  "n": 5,
+  "accuracy": 0.8,
+  "low": 0.3755282641185388,
+  "high": 0.9637768390302125,
+  "rest_accuracy": 0.7684210526315789,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "endorsement agreement",
+  "n": 5,
+  "accuracy": 1.0,
+  "low": 0.5655085052479191,
+  "high": 1.0,
+  "rest_accuracy": 0.7578947368421053,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "fleet maintenance agreement",
+  "n": 5,
+  "accuracy": 0.6,
+  "low": 0.23071993220883708,
+  "high": 0.8823817688407467,
+  "rest_accuracy": 0.7789473684210526,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "hosting agreement",
+  "n": 5,
+  "accuracy": 0.4,
+  "low": 0.1176182311592533,
+  "high": 0.769280067791163,
+  "rest_accuracy": 0.7894736842105263,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "maintenance agreement",
+  "n": 5,
+  "accuracy": 0.6,
+  "low": 0.23071993220883708,
+  "high": 0.8823817688407467,
+  "rest_accuracy": 0.7789473684210526,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "marketing agreement",
+  "n": 5,
+  "accuracy": 1.0,
+  "low": 0.5655085052479191,
+  "high": 1.0,
+  "rest_accuracy": 0.7578947368421053,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "master services agreement",
+  "n": 5,
+  "accuracy": 0.6,
+  "low": 0.23071993220883708,
+  "high": 0.8823817688407467,
+  "rest_accuracy": 0.7789473684210526,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "operation and maintenance agreement",
+  "n": 5,
+  "accuracy": 1.0,
+  "low": 0.5655085052479191,
+  "high": 1.0,
+  "rest_accuracy": 0.7578947368421053,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "powerof",
+  "n": 5,
+  "accuracy": 0.6,
+  "low": 0.23071993220883708,
+  "high": 0.8823817688407467,
+  "rest_accuracy": 0.7789473684210526,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "sponsorship agreement",
+  "n": 10,
+  "accuracy": 0.9,
+  "low": 0.5958436145024278,
+  "high": 0.9821242504842788,
+  "rest_accuracy": 0.7555555555555555,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "strategic alliance agreement",
+  "n": 10,
+  "accuracy": 1.0,
+  "low": 0.7224598312333834,
+  "high": 1.0,
+  "rest_accuracy": 0.7444444444444445,
+  "clearly_worse": false
+ },
+ {
+  "dimension": "contract type",
+  "slice": "transportation contract",
+  "n": 5,
+  "accuracy": 0.2,
+  "low": 0.03622316096978745,
+  "high": 0.6244717358814613,
+  "rest_accuracy": 0.8,
+  "clearly_worse": false
+ }
+]

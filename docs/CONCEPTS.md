@@ -72,7 +72,7 @@ A map from the usual AI engineering topics to this repo. "Built" means the code 
 | PII | Presidio before the model, in the index and in memory | Built, measured (99.0% recall on synthetic data) |
 | Guardrails | all of the above, plus input length and output leak checks | Built |
 | Drift | `drift.py`, `admin drift-report` | Built. No live traffic yet. |
-| Bias auditing | not done | Not done |
+| Bias auditing | `eval/slice_report.py`: accuracy by clause group, clause present, contract length and contract type, with a multiple-comparison correction | Built, measured as performance slicing. A demographic fairness audit is not possible with this data. |
 
 ## Production
 
