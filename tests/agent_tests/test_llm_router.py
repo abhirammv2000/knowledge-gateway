@@ -74,7 +74,7 @@ def test_temperature_is_sent_to_every_model_except_anthropic():
 
     assert deployment_params(settings, "openai/gpt-4o") == {"model": "openai/gpt-4o", "temperature": 0.0}
     assert deployment_params(settings, "gemini/gemini-3.6-flash")["temperature"] == 0.0
-    assert deployment_params(settings, "anthropic/claude-sonnet-5-5") == {"model": "anthropic/claude-sonnet-5-5"}
+    assert "temperature" not in deployment_params(settings, "anthropic/claude-sonnet-5-5")
 
 
 async def test_the_built_router_carries_the_temperature():
@@ -103,3 +103,59 @@ def test_hosted_models_get_no_ollama_settings():
     for model in ("openai/gpt-4o", "gemini/gemini-3.6-flash", "anthropic/claude-sonnet-5-5"):
         params = deployment_params(Settings(), model)
         assert "api_base" not in params and "num_ctx" not in params
+
+
+# provider prompt caching
+
+def test_only_the_anthropic_deployment_asks_for_a_cache_marker_on_the_system_prompt():
+    from agent.llm import deployment_params
+
+    settings = Settings()
+
+    assert deployment_params(settings, "anthropic/claude-sonnet-5-5")["cache_control_injection_points"] == [
+        {"location": "message", "role": "system"}]
+    for model in ("openai/gpt-4o", "gemini/gemini-3.6-flash", "ollama_chat/qwen2.5-coder:7b"):
+        assert "cache_control_injection_points" not in deployment_params(settings, model)
+
+
+def test_prompt_caching_can_be_switched_off():
+    from agent.llm import deployment_params
+
+    assert "cache_control_injection_points" not in deployment_params(Settings(prompt_caching=False), "anthropic/claude-sonnet-5-5")
+
+
+async def test_the_request_to_anthropic_carries_the_marker_on_the_system_block(monkeypatch):
+    """Intercepts the HTTP call, so nothing is sent. Checks what LiteLLM would send to Anthropic."""
+    from litellm.llms.custom_httpx import http_handler
+
+    sent = {}
+
+    async def capture(self, *args, **kwargs):
+        sent["body"] = kwargs.get("json") or kwargs.get("data")
+        raise RuntimeError("stop before the network")
+
+    monkeypatch.setattr(http_handler.AsyncHTTPHandler, "post", capture)
+    from agent.llm import build_router
+
+    router = build_router(Settings(primary_model="anthropic/claude-sonnet-5-5"), models=["anthropic/claude-sonnet-5-5"],
+                          with_fallbacks=False)
+    with pytest.raises(Exception):
+        await router.acompletion(model="m0", api_key="sk-test", max_tokens=5, num_retries=0,
+                                 messages=[{"role": "system", "content": "rules " * 40}, {"role": "user", "content": "hi"}])
+
+    import json
+    body = json.loads(sent["body"]) if isinstance(sent["body"], (str, bytes)) else sent["body"]
+    assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in json.dumps(body["messages"])
+
+
+def test_cached_input_tokens_are_read_from_the_usage_block():
+    from types import SimpleNamespace
+
+    from agent.llm import _cached_tokens
+
+    assert _cached_tokens(SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=900))) == 900
+    assert _cached_tokens(SimpleNamespace(prompt_tokens_details=None)) == 0
+    assert _cached_tokens(SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=None))) == 0
+    assert _cached_tokens(SimpleNamespace()) == 0
+    assert _cached_tokens(None) == 0

@@ -50,6 +50,7 @@ Measure where the money goes first. Per question for GPT-4o: about $0.0118. Opti
 - **Cascade (cheap first, escalate if unsure):** I replayed it from the two saved runs (`eval/routing_sim.py`). It escalated 74% of questions, because a right "not found" looks the same as a wrong one. It cost $0.0106 and scored 74%, worse than GPT-4o alone at $0.0118 and 77%. Not worth it, so I did not build it.
 - **Semantic cache:** a 23% hit rate on paraphrases with the guard, free when it hits.
 - **Fewer round trips:** 79% of the time is the model, so each avoided call counts.
+- **Prompt caching:** the system prompt and tool definitions repeat on every call. For Anthropic the system prompt gets a cache marker, which LiteLLM adds only to that deployment so a fallback to OpenAI or Gemini never receives it (checked by intercepting the request). OpenAI and Gemini cache long prefixes without a setting. Cached input tokens are counted per request. I have not measured the saving: no live credit, and the prompt may be shorter than the provider's minimum cacheable size.
 - **Cheaper provider:** in Citera, `gemini-3.6-flash` kept answer quality at about 1/50th of the per-query cost. I have not yet run it on this agent: the Gemini balance ran out after 33 of the 100 questions.
 
 Be wary of any "10x" claim that does not say what accuracy it gave up.
@@ -98,6 +99,10 @@ The latency breakdown came from this: for GPT-4o 79% of 4.3 s is the model, 16% 
 
 **Drift.** Live questions have no labels, so accuracy cannot be watched. `python -m agent.admin drift-report` watches behaviour instead: answer rate, how often it finds something, provider failures, fallbacks, and median time, cost and tool calls, for the last N days against the N days before. Rates use a two-proportion test with a strict cutoff and need 30 requests in each window, sizes use a 1.5x ratio of medians. A provider outage is kept out of the "found something" rate so it cannot look like the agent finding less. It tells you to look, not what broke.
 
+## Streaming (a question that comes up a lot)
+
+`POST /v1/ask/stream` sends server-sent events: `started`, then `step` and `tool` events as the agent works, then `answer`. I do not stream the model's words as it writes them, on purpose. An answer is only released after every citation has been checked against what the model was shown, so streaming the draft would show text that may then be refused. The progress events carry only names and counts. A request that is refused (bad key, rate limit, budget, unknown contract) gets its normal HTTP status and never opens a stream, which needed the first event to be sent only after those checks pass. If the client disconnects, the run is cancelled so it stops spending. Tested through the test client, which buffers the whole stream, so incremental delivery itself is not tested.
+
 ## 13. How do you A/B test two models safely?
 
 Two stages.
@@ -115,7 +120,7 @@ A router with an ordered list: Anthropic, then OpenAI, then Gemini. It retries o
 
 Three layers, scoped to one user: the current conversation (last 5 turns, capped at 4,000 characters), notes per matter that come back in every later question once the user has approved them (the model only proposes them, because memory is also an attack surface), and the usage record. Only redacted text is stored, and a user can delete a session or everything (`DELETE /v1/sessions/{id}`, `DELETE /v1/data`). It is SQLite (`memory.py`).
 
-What I have not built, and would for a truly long-running agent: summarising old turns instead of dropping them, deciding what is worth saving without being asked, and expiring stale notes.
+Older turns are not dropped. Once three turns have fallen out of the five-turn window they are folded into a running summary of at most 150 words (one model call every three turns, billed to the key, redacted again before it is stored). The next question gets the summary as an earlier turn, labelled as possibly incomplete, then the last turns word for word. The summary goes in a user message and not the system prompt, because it is made from model output that may have read a hostile contract, and the system prompt is the highest authority. If the summary call fails the conversation carries on and tries again next turn. What I have not built: deciding what is worth saving without being asked, and expiring stale notes. The summary is tested with a scripted model and has not run on a live one.
 
 ## 16. How do you grade tool-calling, not just final text?
 

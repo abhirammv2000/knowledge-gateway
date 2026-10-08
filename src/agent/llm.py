@@ -32,6 +32,8 @@ class LLMReply:
     model: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
+    # the part of input_tokens the provider read from its prompt cache, which is billed at a lower price
+    cached_input_tokens: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
     fallback_used: bool = False
@@ -64,6 +66,11 @@ def deployment_params(settings: Settings, model: str) -> dict[str, Any]:
     params: dict[str, Any] = {"model": model}
     if not model.startswith("anthropic/"):
         params["temperature"] = settings.temperature
+    elif settings.prompt_caching:
+        # LiteLLM adds the cache marker only to the requests that go to this deployment, so a fallback to
+        # OpenAI or Gemini does not receive a field it does not understand. The marker goes on the system
+        # prompt, and Anthropic caches everything before it, the tool definitions included.
+        params["cache_control_injection_points"] = [{"location": "message", "role": "system"}]
     if model.startswith(("ollama/", "ollama_chat/")):
         # ollama_chat/ is the endpoint that supports tool calls. A local model costs nothing per token.
         params["api_base"] = settings.ollama_api_base
@@ -108,7 +115,9 @@ class RouterLLM:
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: Any = None
     ) -> LLMReply:
         started = time.monotonic()
-        kwargs: dict[str, Any] = {"model": "m0", "messages": messages, "tools": tools, "max_tokens": 2000}
+        kwargs: dict[str, Any] = {"model": "m0", "messages": messages, "max_tokens": 2000}
+        if tools:  # an empty list is rejected by some providers
+            kwargs["tools"] = tools
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
         response = await self.router.acompletion(**kwargs)
@@ -138,6 +147,7 @@ class RouterLLM:
             model=served,
             input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
             output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            cached_input_tokens=_cached_tokens(usage),
             cost_usd=_cost_of(response),
             seconds=round(seconds, 3),
             fallback_used=self._served_by_fallback(response),
@@ -148,6 +158,12 @@ class RouterLLM:
     def _served_by_fallback(self, response: Any) -> bool:
         served_id = (getattr(response, "_hidden_params", None) or {}).get("model_id")
         return bool(served_id) and bool(self._primary_ids) and served_id not in self._primary_ids
+
+
+def _cached_tokens(usage: Any) -> int:
+    """Input tokens served from the provider's prompt cache. LiteLLM reports them the same way for every provider."""
+    details = getattr(usage, "prompt_tokens_details", None)
+    return int(getattr(details, "cached_tokens", 0) or 0)
 
 
 def _cost_of(response: Any) -> float:

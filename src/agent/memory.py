@@ -31,7 +31,7 @@ MAX_NOTES_PENDING = 20  # per matter, so a flood of proposals cannot grow withou
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, matter TEXT NOT NULL, created REAL NOT NULL,
-    arm TEXT NOT NULL DEFAULT 'control');
+    arm TEXT NOT NULL DEFAULT 'control', summary TEXT NOT NULL DEFAULT '', summarized_through INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS feedback (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, ts REAL NOT NULL, helpful INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS turns (
@@ -53,6 +53,10 @@ class Memory:
         self._db.executescript(_SCHEMA)
         if "arm" not in {row[1] for row in self._db.execute("PRAGMA table_info(sessions)")}:
             self._db.execute("ALTER TABLE sessions ADD COLUMN arm TEXT NOT NULL DEFAULT 'control'")  # from before A/B
+        existing = {row[1] for row in self._db.execute("PRAGMA table_info(sessions)")}
+        if "summary" not in existing:  # a database from before summaries
+            self._db.execute("ALTER TABLE sessions ADD COLUMN summary TEXT NOT NULL DEFAULT ''")
+            self._db.execute("ALTER TABLE sessions ADD COLUMN summarized_through INTEGER NOT NULL DEFAULT 0")
         if "approved" not in {row[1] for row in self._db.execute("PRAGMA table_info(notes)")}:
             # notes saved before approval existed were trusted when they were saved, so they stay trusted
             self._db.execute("ALTER TABLE notes ADD COLUMN approved INTEGER NOT NULL DEFAULT 1")
@@ -119,6 +123,26 @@ class Memory:
                 "INSERT INTO turns (session_id, ts, question, answer, found, contract) VALUES (?, ?, ?, ?, ?, ?)",
                 (session_id, time.time(), question, answer, int(found), contract),
             )
+
+    def overflow(self, session_id: str, keep: int = DEFAULT_HISTORY_TURNS) -> list[tuple[int, str, str]]:
+        """(turn id, question, answer) for turns older than the last `keep` that no summary covers yet, oldest first."""
+        with self._lock:
+            rows = self._db.execute("SELECT id, question, answer FROM turns WHERE session_id = ? ORDER BY id", (session_id,)).fetchall()
+            done = self._db.execute("SELECT summarized_through FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        older = rows[:-keep] if keep and len(rows) > keep else ([] if keep else rows)
+        return [r for r in older if r[0] > (done[0] if done else 0)]
+
+    def summary(self, session_id: str) -> str:
+        with self._lock:
+            row = self._db.execute("SELECT summary FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        return row[0] if row else ""
+
+    def set_summary(self, session_id: str, text: str, through_turn_id: int, max_chars: int = 1200) -> None:
+        """Store the running summary and the last turn it covers. The text is redacted again on the way in."""
+        text = self._clean(text).strip()[:max_chars]
+        with self._lock, self._db:
+            self._db.execute("UPDATE sessions SET summary = ?, summarized_through = ? WHERE id = ?",
+                             (text, through_turn_id, session_id))
 
     def history(self, session_id: str, turns: int = DEFAULT_HISTORY_TURNS,
                 max_chars: int = DEFAULT_HISTORY_CHARS) -> list[tuple[str, str]]:

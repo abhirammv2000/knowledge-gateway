@@ -11,7 +11,7 @@ A map from the usual AI engineering topics to this repo. "Built" means the code 
 | SQL and databases | SQLite for accounts, memory, cache and idempotency, with small migrations for older files | Built. One instance only. |
 | Git and CI | GitHub Actions runs the full test suite from a clean machine | Built |
 | Containers | `Dockerfile` (CPU torch, baked models, non-root). It was built and smoke tested. | Built |
-| Testing | About 240 tests with no network. I broke the code on purpose to check the important ones fail. | Built |
+| Testing | About 290 tests with no network. I broke the code on purpose to check the important ones fail. | Built |
 
 ## Working with models
 
@@ -45,6 +45,8 @@ A map from the usual AI engineering topics to this repo. "Built" means the code 
 | Human approval | the model proposes notes and the user approves them (`/v1/notes`). DevFlow gates risky actions. | Built |
 | Idempotency | `idempotency.py`, `Idempotency-Key` on `/v1/ask` | Built |
 | Memory | conversations and approved notes, redacted, per key, deletable | Built |
+| Long-conversation memory | last five turns kept, older turns folded into a running summary (`service.py`, `memory.py`) | Built, tested with a scripted model. Not run on a live model. |
+| Streaming | `POST /v1/ask/stream`: progress events, then the answer once its citations are checked | Built, tested through the test client |
 | MCP | the retrieval layer is an MCP server (`gateway/mcp_server.py`). DevFlow uses MCP servers. | Built. The agent calls its tools in process, not through an MCP client. |
 | Multi-agent | not built on purpose. One loop was enough, and more agents would add cost and failure modes. | Not done |
 | Coding agent | DevFlow, a separate repo | Built there |
@@ -83,6 +85,7 @@ A map from the usual AI engineering topics to this repo. "Built" means the code 
 | Model routing | ordered fallback chain, plus a percentage split between two models | Built |
 | A/B testing | sticky arms, separate caches, feedback, `ab-report` | Built. No live traffic yet. |
 | Semantic cache | guarded against flipped meanings | Built, measured |
+| Provider prompt caching | cache marker on the system prompt for Anthropic only, cached tokens counted | Built. The request shape is checked offline, the saving is not measured. |
 | Secrets | environment variables, keys stored as hashes | Built |
 | Queues | not built. A semaphore limits concurrency. | Not done |
 | Infrastructure as code | not for this project. Another project has Terraform and Helm. | Not done here |

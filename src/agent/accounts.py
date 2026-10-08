@@ -159,7 +159,7 @@ class Accounts:
         with self._lock:
             rows = self._db.execute(
                 "SELECT status, cost_usd, seconds, tool_calls, fallback, found FROM usage"
-                " WHERE cached = 0 AND ts >= ? AND ts < ?", (start, end)
+                " WHERE cached = 0 AND status != 'summarized' AND ts >= ? AND ts < ?", (start, end)
             ).fetchall()
         return [{"status": r[0], "cost_usd": r[1], "seconds": r[2], "tool_calls": r[3], "fallback": r[4],
                  "found": None if r[5] is None else bool(r[5])} for r in rows]
@@ -169,7 +169,7 @@ class Accounts:
         because they never reached a model."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT arm, status, cost_usd, seconds, fallback FROM usage WHERE cached = 0 AND ts >= ?", (since,)
+                "SELECT arm, status, cost_usd, seconds, fallback FROM usage WHERE cached = 0 AND status != 'summarized' AND ts >= ?", (since,)
             ).fetchall()
         arms: dict[str, list[tuple]] = defaultdict(list)
         for row in rows:
@@ -192,6 +192,6 @@ class Accounts:
         since = _start_of_utc_day(self._clock())
         with self._lock:
             count = self._db.execute(
-                "SELECT COUNT(*) FROM usage WHERE api_key_id = ? AND ts >= ?", (key.id, since)
+                "SELECT COUNT(*) FROM usage WHERE api_key_id = ? AND status != 'summarized' AND ts >= ?", (key.id, since)
             ).fetchone()[0]
         return Spend(round(self.spent_today(key.id), 6), key.daily_budget_usd, count)
