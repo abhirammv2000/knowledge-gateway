@@ -82,7 +82,7 @@ Or `docker build -t contract-agent .` and run it with a volume on `/data`. Setti
 
 ## Tests and evals
 
-`python -m pytest -q` runs about 290 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
+`python -m pytest -q` runs about 270 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
 
 The evals call real models and cost money, so they are scripts in `eval/`: `agent_eval.py` (accuracy), `tool_eval.py` (tool calls), `cache_eval.py` (cache), `latency_eval.py`, `injection_eval.py` and `failure_eval.py`. Each refuses to save a run where the provider failed, so a table of errors can't pass for a result.
 

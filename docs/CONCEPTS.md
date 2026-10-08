@@ -11,7 +11,7 @@ A map from the usual AI engineering topics to this repo. "Built" means the code 
 | SQL and databases | SQLite for accounts, memory, cache and idempotency, with small migrations for older files | Built. One instance only. |
 | Git and CI | GitHub Actions runs the full test suite from a clean machine | Built |
 | Containers | `Dockerfile` (CPU torch, baked models, non-root). It was built and smoke tested. | Built |
-| Testing | About 290 tests with no network. I broke the code on purpose to check the important ones fail. | Built |
+| Testing | About 270 tests with no network. I broke the code on purpose to check the important ones fail. | Built |
 
 ## Working with models
 
