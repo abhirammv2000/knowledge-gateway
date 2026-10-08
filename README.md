@@ -89,6 +89,7 @@ The evals call real models and cost money, so they are scripts in `eval/`: `agen
 ## More
 
 - [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md): methods, results and what went wrong along the way
+- [docs/AI_ENGINEERING_MAP.md](docs/AI_ENGINEERING_MAP.md): every AI engineering topic mapped to the project, file and result that uses it, across all my projects, with what is missing
 - [docs/CONCEPTS.md](docs/CONCEPTS.md): which AI engineering topics are built, measured or not done, and where
 - [docs/INTERVIEW.md](docs/INTERVIEW.md): the usual AI engineering questions, answered from this repo
 - [docs/GATEWAY.md](docs/GATEWAY.md): the retrieval layer, redaction and MCP server
