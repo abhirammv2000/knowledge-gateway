@@ -34,6 +34,24 @@ The obvious way to cut cost: run GPT-4o-mini first and call GPT-4o only when the
 
 The cascade loses. Half the questions have no marked clause, so a correct "not found" looks the same as a wrong one, and 74% of questions get escalated. The result costs almost as much as GPT-4o and is less accurate. Mini's mistakes are not errors or failed citations, so the second rule never fires. The model's confidence does not separate them either, which is why I did not build a cascade. The router stays a plain fallback chain.
 
+## Where it does worse
+
+`eval/slice_report.py` splits a saved run by clause group, whether a clause is marked, contract length and contract type, and flags a slice only when its interval sits clearly below everything else (the interval widens with the number of slices, so a lucky small slice is not reported). No model is called. Results are in `eval/results/slices_*.json`.
+
+| Slice | GPT-4o | GPT-4o-mini |
+|---|---|---|
+| Clause terms (78 questions) | 83% [74, 90] | 73% [62, 82] |
+| Header facts: name, parties, dates, renewal (22) | 55% [35, 73] | **36% [20, 57], clearly worse** |
+| A clause is marked (50) | **60% [46, 72], clearly worse** | **38% [26, 52], clearly worse** |
+| No clause marked (50) | 94% [84, 98] | 92% [81, 97] |
+| Short, medium, long contracts (35, 35, 30) | 80%, 80%, 70% | 71%, 60%, 63% |
+
+- The main gap is the same for both models: when a clause exists they miss it far more often than they invent one. That is the "said not found" finding again, seen from the other side.
+- For the smaller model, header facts are a second weak spot.
+- Long contracts score 10 points lower for GPT-4o, but 30 questions cannot separate that from luck, so it is not flagged.
+- No contract type is flagged for either model. With five questions per type that is a limit of the data, not a clean bill.
+- CUAD says nothing about the people or companies involved, so this is performance slicing and not a fairness audit across demographic groups. That would need data this set does not have.
+
 ## Tool calls
 
 `eval/tool_eval.py` grades the tool trace with rules, not the answer text. Three kinds of question, 12 each:

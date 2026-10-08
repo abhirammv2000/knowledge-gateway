@@ -1,6 +1,7 @@
 """The HTTP API and the demo page.
 
     POST /v1/ask          ask a question about a contract (needs an API key; optional Idempotency-Key header)
+    POST /v1/ask/stream   the same, as server-sent events: progress, then the checked answer
     GET  /v1/contracts    find a contract's exact title
     GET  /v1/usage        what this key has spent today
     POST /v1/feedback     thumbs up or down for a conversation
@@ -15,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -23,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
@@ -173,6 +175,51 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
             service.idempotency.finish(key.id, idem, request_hash, 200, response)
         return response
 
+    @app.post("/v1/ask/stream")
+    async def ask_stream(body: AskRequest, request: Request, key: ApiKey = Depends(authenticated)):
+        """Server-sent events. `started`, then `step` and `tool` as the agent works, then `answer` with the same body
+        /v1/ask returns. Nothing the model says is streamed while it is being written, because an answer is only
+        released after its citations are checked. A request that is refused (bad key, rate limit, budget, unknown
+        contract) gets its normal HTTP status and no stream."""
+        service = svc(request)
+        events: asyncio.Queue = asyncio.Queue()
+        task = asyncio.create_task(service.ask(key, body.question, body.contract, body.session_id, on_event=events.put_nowait))
+        first = asyncio.ensure_future(events.get())
+        await asyncio.wait({task, first}, return_when=asyncio.FIRST_COMPLETED)
+        if task.done() and not first.done():
+            first.cancel()
+            task.result()  # raises Denied or BadRequest, which the handlers turn into a status
+            raise RuntimeError("ask finished without starting")
+
+        async def stream():
+            try:
+                yield _sse(first.result()["type"], first.result())
+                while not (task.done() and events.empty()):
+                    getter = asyncio.ensure_future(events.get())
+                    await asyncio.wait({task, getter}, return_when=asyncio.FIRST_COMPLETED)
+                    if getter.done():
+                        item = getter.result()
+                        yield _sse(item["type"], item)
+                        continue
+                    getter.cancel()
+                    while not events.empty():  # the run finished while this was waiting, so send what is left
+                        item = events.get_nowait()
+                        yield _sse(item["type"], item)
+                answer = await task
+                yield _sse("answer", {**answer.to_dict(), "error": True} if answer.stop_reason in ("error", "timeout") else answer.to_dict())
+            except asyncio.CancelledError:
+                task.cancel()  # the client went away, so stop spending
+                raise
+            except Exception:
+                log.exception("stream failed")
+                yield _sse("error", {"error": "internal error"})
+            finally:
+                if not task.done():
+                    task.cancel()
+
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
     @app.post("/v1/feedback")
     async def feedback(body: FeedbackRequest, request: Request, key: ApiKey = Depends(authenticated)):
         arm = svc(request).memory.add_feedback(body.session_id, key.id, body.helpful)
@@ -218,6 +265,10 @@ def create_app(service: AgentService | None = None, warm_up: bool = False) -> Fa
         return {"deleted": True}
 
     return app
+
+
+def _sse(event: str, data: dict) -> str:
+    return "event: {}\ndata: {}\n\n".format(event, json.dumps(data))
 
 
 def _reply(answer):

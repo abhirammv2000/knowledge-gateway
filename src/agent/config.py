@@ -43,6 +43,17 @@ class Settings:
     ab_model: str = field(default_factory=lambda: os.environ.get("AGENT_AB_MODEL", ""))
     ab_percent: int = field(default_factory=lambda: min(100, max(0, _int("AGENT_AB_PERCENT", 0))))
 
+    # A long conversation keeps its last five turns word for word and a running summary of everything before. The
+    # summary is made once this many older turns have piled up, so it costs one model call every few turns and
+    # not one per turn. 0 turns the summary off, and older turns are then simply dropped.
+    summarize_batch: int = field(default_factory=lambda: _int("AGENT_SUMMARIZE_BATCH", 3))
+    summary_max_chars: int = field(default_factory=lambda: _int("AGENT_SUMMARY_MAX_CHARS", 1200))
+
+    # Provider-side prompt caching. The system prompt and the tool definitions are the same on every call of
+    # every question, so Anthropic can read them from its cache at a fraction of the input price. OpenAI and
+    # Gemini cache long prefixes by themselves and need no setting. Turn this off to compare.
+    prompt_caching: bool = field(default_factory=lambda: os.environ.get("AGENT_PROMPT_CACHING", "1") != "0")
+
     # Local open-weight models through Ollama (model names like ollama_chat/qwen2.5-coder:7b). Ollama's own default
     # context is 2048 tokens, which cuts off a contract passage and the tool results, so ask for more.
     ollama_num_ctx: int = field(default_factory=lambda: _int("AGENT_OLLAMA_NUM_CTX", 8192))

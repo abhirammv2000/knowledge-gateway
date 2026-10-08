@@ -46,7 +46,8 @@ What keeps it safe to run:
 - **Model failures:** the router retries once, then falls back to the next provider. If the first provider's account has no credit or the key is bad, the answer still comes from the fallback.
 - **Keys and spending:** API keys are stored as hashes. Each key has a per-minute rate limit and a daily dollar budget, and the whole service has a daily dollar cap.
 - **Observability:** OpenTelemetry spans (sizes and timings, never text), Prometheus metrics at `/metrics` for admin keys, and one log line per question with counts only.
-- **Cache:** a semantic cache with a guard, off for follow-up questions.
+- **Cache:** a semantic cache with a guard, off for follow-up questions. For Anthropic the system prompt and tool definitions are also marked for the provider's prompt cache, and cached input tokens are counted.
+- **Long conversations:** the last five turns are kept word for word. Older ones are folded into a running summary, one model call every three turns, redacted like everything else.
 - **Retries:** send an `Idempotency-Key` header and a repeated request gets the first answer back instead of a second run and a second charge.
 - **Drift:** `python -m agent.admin drift-report` compares the last days with the days before (answer rate, found rate, failures, fallbacks, time, cost) and flags real shifts.
 - **A/B test:** `AGENT_AB_MODEL` and `AGENT_AB_PERCENT` send a share of new conversations to a second model. `python -m agent.admin ab-report` compares the two on cost, latency, failures and thumbs.
@@ -71,6 +72,7 @@ Or `docker build -t contract-agent .` and run it with a volume on `/data`. Setti
 | Endpoint | |
 |---|---|
 | `POST /v1/ask` | ask a question (`contract`, `session_id` optional) |
+| `POST /v1/ask/stream` | the same as server-sent events: `started`, `step` and `tool` as it works, then `answer` |
 | `GET /v1/contracts?contains=` | find an exact title |
 | `POST /v1/feedback` | thumbs up or down for a conversation |
 | `GET /v1/notes`, `POST /v1/notes/{id}/approve`, `DELETE /v1/notes/{id}` | review the notes the model proposed |
@@ -80,13 +82,14 @@ Or `docker build -t contract-agent .` and run it with a volume on `/data`. Setti
 
 ## Tests and evals
 
-`python -m pytest -q` runs about 240 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
+`python -m pytest -q` runs about 270 tests with no network and no API keys: the agent loop against a scripted model, the security properties (no raw personal data in anything sent to a model, a made-up quote is rejected, a key over budget is stopped), the stores and the API. I checked that the main ones fail when the code is broken on purpose.
 
 The evals call real models and cost money, so they are scripts in `eval/`: `agent_eval.py` (accuracy), `tool_eval.py` (tool calls), `cache_eval.py` (cache), `latency_eval.py`, `injection_eval.py` and `failure_eval.py`. Each refuses to save a run where the provider failed, so a table of errors can't pass for a result.
 
 ## More
 
 - [docs/AGENT_EVALUATION.md](docs/AGENT_EVALUATION.md): methods, results and what went wrong along the way
+- [docs/AI_ENGINEERING_MAP.md](docs/AI_ENGINEERING_MAP.md): every AI engineering topic mapped to the project, file and result that uses it, across all my projects, with what is missing
 - [docs/CONCEPTS.md](docs/CONCEPTS.md): which AI engineering topics are built, measured or not done, and where
 - [docs/INTERVIEW.md](docs/INTERVIEW.md): the usual AI engineering questions, answered from this repo
 - [docs/GATEWAY.md](docs/GATEWAY.md): the retrieval layer, redaction and MCP server

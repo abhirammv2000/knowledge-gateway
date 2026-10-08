@@ -16,7 +16,7 @@ from agent.cache import SemanticCache
 from agent.config import Settings
 from agent.idempotency import IdempotencyStore
 from agent.llm import LLM
-from agent.loop import run_agent
+from agent.loop import SUMMARY_PROMPT, run_agent
 from agent.memory import Memory
 from agent.schema import AgentResult
 from gateway.service import GatewayService
@@ -75,7 +75,7 @@ class AgentService:
         self._challenger_key = f"{settings.ab_model}|{PROMPT_VERSION}"
 
     async def ask(self, key: ApiKey, question: str, contract: str | None = None,
-                  session_id: str | None = None) -> Answer:
+                  session_id: str | None = None, on_event=None) -> Answer:
         question = question.strip()
         if not question:
             raise BadRequest("question is empty")
@@ -93,16 +93,52 @@ class AgentService:
         else:
             matter = contract or GENERAL_MATTER
             session_id = self.memory.create_session(key.id, matter, self._new_arm())
-        history = self.memory.history(session_id)
+        history = self._history(session_id)
 
+        if on_event:  # every check has passed and the session exists, so a stream can start now
+            on_event({"type": "started", "session_id": session_id})
         async with self._slots:
             metrics.ACTIVE.inc()
             try:
                 with get_tracer().start_as_current_span("agent.request"):
-                    answer = await self._answer(key, question, contract, session_id, matter, history)
+                    answer = await self._answer(key, question, contract, session_id, matter, history, on_event)
             finally:
                 metrics.ACTIVE.dec()
         return answer
+
+    def _history(self, session_id: str) -> list[tuple[str, str]]:
+        """The last turns word for word, led by the summary of everything older when there is one."""
+        turns = self.memory.history(session_id)
+        summary = self.memory.summary(session_id)
+        if summary and turns:
+            return [("[Earlier in this conversation, summarised, so it may be incomplete] " + summary, "Noted.")] + turns
+        return turns
+
+    async def _compact(self, key: ApiKey, session_id: str) -> None:
+        """Fold turns that have fallen out of the window into the running summary, once enough have piled up.
+
+        One model call every few turns. If it fails the old turns are simply left out, as before, and the next
+        turn tries again."""
+        batch = self.settings.summarize_batch
+        if batch <= 0:
+            return
+        old = self.memory.overflow(session_id)
+        if len(old) < batch:
+            return
+        previous = self.memory.summary(session_id)
+        text = "\n".join(f"User: {q[:600]}\nAssistant: {a[:600]}" for _, q, a in old)
+        messages = [{"role": "system", "content": SUMMARY_PROMPT},
+                    {"role": "user", "content": (f"Summary so far:\n{previous}\n\n" if previous else "") + "New turns to fold in:\n" + text}]
+        try:
+            reply = await self.llm.complete(messages, [])
+        except Exception:
+            log.exception("conversation summary failed")
+            return
+        if not reply.text.strip():
+            return
+        self.memory.set_summary(session_id, reply.text, old[-1][0], self.settings.summary_max_chars)
+        self.accounts.record(key, "summarized", reply.model or None, reply.input_tokens, reply.output_tokens,
+                             reply.cost_usd, reply.seconds, False, 0, reply.fallback_used)
 
     def _new_arm(self) -> str:
         if self.challenger is not None and self._rng.random() * 100 < self.settings.ab_percent:
@@ -112,7 +148,7 @@ class AgentService:
     def _titles(self) -> list[str]:
         return self.gateway.store.titles()
 
-    async def _answer(self, key, question, contract, session_id, matter, history) -> Answer:
+    async def _answer(self, key, question, contract, session_id, matter, history, on_event=None) -> Answer:
         arm = self.memory.session_arm(session_id)
         on_challenger = arm == "challenger" and self.challenger is not None
         llm = self.challenger if on_challenger else self.llm
@@ -127,13 +163,14 @@ class AgentService:
             metrics.CACHE.labels("skipped").inc()
 
         result = await run_agent(
-            question, llm=llm, service=self.gateway, settings=self.settings, contract=contract, history=history,
+            question, on_event=on_event, llm=llm, service=self.gateway, settings=self.settings, contract=contract, history=history,
             notes=self.memory.notes(key.id, matter) or None,
             save_note=lambda text: self.memory.add_note(key.id, matter, text, approved=False),
         )
         self._record(key, result, arm)
         self.memory.add_turn(session_id, result.question_redacted or question, result.answer, result.found,
                              result.contract or contract)
+        await self._compact(key, session_id)
 
         answer = self._to_answer(session_id, result, arm)
         if cacheable and result.stop_reason == "answered" and result.verified:
@@ -179,6 +216,7 @@ class AgentService:
             citations=[{"source_id": c.source_id, "contract": c.contract, "quote": c.quote, "passage": c.passage}
                        for c in result.citations],
             usage={"cached": False, "arm": arm, "cost_usd": result.cost_usd, "tokens": result.input_tokens + result.output_tokens,
+                   "cached_input_tokens": result.cached_input_tokens,
                    "seconds": result.seconds, "model": result.models_used[-1] if result.models_used else None,
                    "tool_calls": result.tool_call_count, "fallback_used": result.fallback_used,
                    "iterations": result.iterations},
@@ -193,6 +231,7 @@ class AgentService:
         metrics.REQUESTS.labels(result.stop_reason).inc()
         metrics.COST.labels(model).inc(result.cost_usd)
         metrics.TOKENS.labels("input").inc(result.input_tokens)
+        metrics.TOKENS.labels("cached_input").inc(result.cached_input_tokens)
         metrics.TOKENS.labels("output").inc(result.output_tokens)
         metrics.LATENCY.observe(result.seconds)
         if result.fallback_used:

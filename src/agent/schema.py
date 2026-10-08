@@ -87,6 +87,7 @@ class AgentResult:
     tool_events: list[ToolEvent] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_input_tokens: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
     llm_seconds: float = 0.0  # time spent waiting for the model, as the router measured it
