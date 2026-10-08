@@ -1,0 +1,130 @@
+{
+ "model": "text-embedding-3-small",
+ "table": [
+  {
+   "threshold": 0.6,
+   "paraphrase": 0.6666666666666666,
+   "different": 0.0049382716049382715,
+   "flipped": 1.0,
+   "paraphrase_guard": 0.4666666666666667,
+   "different_guard": 0.0024691358024691358,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.65,
+   "paraphrase": 0.6,
+   "different": 0.0024691358024691358,
+   "flipped": 1.0,
+   "paraphrase_guard": 0.4,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.7,
+   "paraphrase": 0.3333333333333333,
+   "different": 0.0,
+   "flipped": 1.0,
+   "paraphrase_guard": 0.23333333333333334,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.75,
+   "paraphrase": 0.06666666666666667,
+   "different": 0.0,
+   "flipped": 1.0,
+   "paraphrase_guard": 0.06666666666666667,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.8,
+   "paraphrase": 0.06666666666666667,
+   "different": 0.0,
+   "flipped": 0.8666666666666667,
+   "paraphrase_guard": 0.06666666666666667,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.85,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.5333333333333333,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.88,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.4666666666666667,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.9,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.4,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.92,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.4,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.94,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.2,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  },
+  {
+   "threshold": 0.96,
+   "paraphrase": 0.0,
+   "different": 0.0,
+   "flipped": 0.0,
+   "paraphrase_guard": 0.0,
+   "different_guard": 0.0,
+   "flipped_guard": 0.0
+  }
+ ],
+ "similarity": {
+  "paraphrase": {
+   "min": 0.4772584140300751,
+   "median": 0.6699249446392059,
+   "max": 0.8216643929481506,
+   "n": 30
+  },
+  "different": {
+   "min": 0.10438363254070282,
+   "median": 0.3208254277706146,
+   "max": 0.6572935581207275,
+   "n": 405
+  },
+  "flipped": {
+   "min": 0.7956976890563965,
+   "median": 0.866631805896759,
+   "max": 0.9419500827789307,
+   "n": 15
+  }
+ },
+ "guard_passes": {
+  "paraphrase": 0.6,
+  "different": 0.5407407407407407,
+  "flipped": 0.0
+ },
+ "unresolved_flips": []
+}

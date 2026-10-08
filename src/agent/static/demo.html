@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contract review agent</title>
+<style>
+  :root { --bg:#fafaf8; --fg:#1d1d1b; --muted:#6b6b66; --line:#dcdcd6; --card:#fff; --accent:#1f5eff; --ok:#1a7f4b; --warn:#b15c00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ecebe6; --muted:#a09f98; --line:#33332f; --card:#1f1f1d; --accent:#7aa2ff; --ok:#5fd08e; --warn:#ffb25e; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  label { display:block; font-size:.85rem; color:var(--muted); margin: 14px 0 4px; }
+  input, select, textarea, button { font: inherit; color: inherit; }
+  input, select, textarea { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:6px; background:var(--card); }
+  textarea { min-height: 84px; resize: vertical; }
+  button { margin-top: 14px; padding: 10px 18px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; } .row > button { flex:0 0 auto; margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-top:20px; }
+  .badges span { display:inline-block; font-size:.75rem; padding:2px 8px; border-radius:99px; border:1px solid var(--line); margin-right:6px; }
+  .ok { color: var(--ok); border-color: var(--ok) !important; } .warn { color: var(--warn); border-color: var(--warn) !important; }
+  blockquote { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); font-size:.9rem; white-space: pre-wrap; }
+  mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; }
+  .meta { color: var(--muted); font-size:.8rem; margin-top: 12px; }
+  .error { color: #c62828; margin-top: 12px; }
+  .answer { white-space: pre-wrap; }
+  details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Contract review agent</h1>
+  <p class="lead">Ask a question about one of 510 real commercial contracts. Every answer quotes the contract, and the quotes are checked against the text. Names, emails and similar details are removed before anything reaches a language model.</p>
+
+  <label for="key">API key</label>
+  <input id="key" type="password" placeholder="kg_..." autocomplete="off">
+
+  <label for="search">Contract</label>
+  <div class="row">
+    <input id="search" placeholder="Search by title, for example distributor">
+    <button id="find" type="button">Find</button>
+  </div>
+  <select id="contract" size="1"></select>
+
+  <label for="question">Question</label>
+  <textarea id="question" maxlength="2000" placeholder="Can either party terminate early, and how much notice is needed?"></textarea>
+  <button id="ask" type="button">Ask</button>
+
+  <div id="out"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const out = $("out");
+let sessionId = null;
+
+$("key").value = sessionStorage.getItem("key") || "";
+
+function authHeaders() {
+  const key = $("key").value.trim();
+  sessionStorage.setItem("key", key);
+  return { "Authorization": "Bearer " + key, "Content-Type": "application/json" };
+}
+
+function showError(message) {
+  out.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "error";
+  div.textContent = message;
+  out.appendChild(div);
+}
+
+async function call(path, options) {
+  const response = await fetch(path, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || data.detail || ("Request failed (" + response.status + ")"));
+  return data;
+}
+
+// a different contract starts a new conversation, so follow-ups never carry over the old one
+$("contract").onchange = () => { sessionId = null; };
+
+$("find").onclick = async () => {
+  try {
+    const data = await call("/v1/contracts?limit=50&contains=" + encodeURIComponent($("search").value), { headers: authHeaders() });
+    const select = $("contract");
+    select.innerHTML = "";
+    data.titles.forEach((title) => { const o = document.createElement("option"); o.textContent = title; select.appendChild(o); });
+    select.size = Math.min(Math.max(data.titles.length, 1), 6);
+    out.innerHTML = "";
+    if (!data.titles.length) showError("No contract matches that search.");
+  } catch (e) { showError(e.message); }
+};
+
+function addText(parent, tag, text, cls) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
+function highlighted(passage, quote) {
+  // the quote may differ from the passage in spacing, so match it loosely
+  const pattern = quote.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+  const match = new RegExp(pattern, "i").exec(passage);
+  const block = document.createElement("blockquote");
+  if (!match) { block.textContent = passage; return block; }
+  block.append(passage.slice(0, match.index));
+  const mark = document.createElement("mark");
+  mark.textContent = match[0];
+  block.appendChild(mark);
+  block.append(passage.slice(match.index + match[0].length));
+  return block;
+}
+
+function render(data) {
+  out.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "card";
+  const badges = addText(card, "div", "", "badges");
+  addText(badges, "span", data.found ? "found in contract" : "not found", data.found ? "ok" : "warn");
+  addText(badges, "span", data.verified ? "citations checked" : "not verified", data.verified ? "ok" : "warn");
+  addText(badges, "span", "confidence: " + data.confidence);
+  addText(card, "p", data.answer, "answer");
+  data.citations.forEach((c) => {
+    const d = document.createElement("details");
+    d.open = true;
+    addText(d, "summary", c.source_id + " in " + c.contract);
+    d.appendChild(highlighted(c.passage, c.quote));
+    card.appendChild(d);
+  });
+  const u = data.usage;
+  const bits = [u.cached ? "answered from cache" : (u.model || "no model call"), "$" + (u.cost_usd || 0).toFixed(4), (u.seconds || 0).toFixed(1) + " s"];
+  if (!u.cached) bits.push(u.tool_calls + " tool calls");
+  if (u.fallback_used) bits.push("a fallback model answered");
+  addText(card, "div", bits.join(" · "), "meta");
+  out.appendChild(card);
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  const contract = $("contract").value || null;
+  if (!question) return showError("Type a question first.");
+  $("ask").disabled = true;
+  out.textContent = "Reading the contract...";
+  try {
+    const data = await call("/v1/ask", { method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ question, contract, session_id: sessionId }) });
+    sessionId = data.session_id;
+    render(data);
+  } catch (e) { showError(e.message); }
+  $("ask").disabled = false;
+};
+</script>
+</body>
+</html>
